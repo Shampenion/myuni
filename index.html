@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мій Університет</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Мобільне меню -->
+        <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
+        
+        <!-- Ліва панель навігації -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <i class="fas fa-graduation-cap logo-icon"></i>
+                <h2>MyUni</h2>
+                <button class="close-sidebar" id="closeSidebar"><i class="fas fa-times"></i></button>
+            </div>
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" data-target="home"><i class="fas fa-home"></i> 🏠 Головна</a>
+                <a href="#" class="nav-item" data-target="schedule"><i class="fas fa-list-alt"></i> 📅 Розклад</a>
+                <a href="#" class="nav-item" data-target="tasks"><i class="fas fa-tasks"></i> 📝 Завдання <span class="badge" id="taskBadge">0</span></a>
+                <a href="#" class="nav-item" data-target="calendar"><i class="fas fa-calendar-alt"></i> 🗓️ Календар</a>
+                <a href="#" class="nav-item" data-target="subjects"><i class="fas fa-book"></i> 📚 Предмети</a>
+                <a href="#" class="nav-item" data-target="seminars-tab"><i class="fas fa-chalkboard-teacher"></i> 📝 Семінари</a>
+                <a href="#" class="nav-item" data-target="settings"><i class="fas fa-cog"></i> ⚙️ Налаштування</a>
+            </nav>
+            <!-- Блок профілю внизу бокового меню -->
+            <div class="sidebar-footer" style="border-top: 1px solid var(--border-color); margin-top: auto; padding: 15px;">
+                <div id="userDisplay" style="font-size: 13px; margin-bottom: 8px; color: var(--text-muted); word-break: break-all;">Не авторизовано</div>
+                <button class="btn btn-outline btn-sm w-100" id="btnAuthAction"><i class="fas fa-sign-in-alt"></i> Увійти</button>
+            </div>
+        </aside>
+
+        <!-- Головний контент -->
+        <main class="main-content">
+            
+            <!-- ГОЛОВНА СТОРІНКА -->
+            <section id="home" class="page-section active">
+                <header class="page-header">
+                    <h1 id="greetingName">Привіт, Студенте! 👋</h1>
+                    <div class="date-info">
+                        <span id="currentDate"></span> • <span id="currentWeekTypeBadge" class="badge-week">Верхній тиждень</span>
+                    </div>
+                </header>
+                <div class="dashboard-grid">
+                    <div class="card next-class-card">
+                        <h3><i class="fas fa-clock"></i> Найближча пара</h3>
+                        <div id="nextClassWidget" class="widget-content"></div>
+                    </div>
+                    <div class="card stats-card">
+                        <h3><i class="fas fa-chart-pie"></i> Статистика завдань</h3>
+                        <div class="stat-item">
+                            <span>Не виконано:</span> <strong id="uncompletedCount" class="text-danger">0</strong>
+                        </div>
+                        <button class="btn btn-outline mt-2" onclick="document.querySelector('[data-target=\'tasks\']').click()">Перейти до завдань</button>
+                    </div>
+                </div>
+                <h3 class="section-title">Розклад на сьогодні</h3>
+                <div id="todaySchedule" class="schedule-list"></div>
+            </section>
+
+            <!-- РОЗКЛАД -->
+            <section id="schedule" class="page-section">
+                <header class="page-header flex-between flex-wrap gap-15">
+                    <h1 class="mb-0">📅 Розклад</h1>
+                    <div class="week-toggle">
+                        <button class="btn btn-toggle active" id="btnUpperWeek">ВЕРХНІЙ ТИЖДЕНЬ</button>
+                        <button class="btn btn-toggle" id="btnLowerWeek">НИЖНІЙ ТИЖДЕНЬ</button>
+                    </div>
+                </header>
+                <p class="text-muted mb-15"><i class="fas fa-fire" style="color: var(--danger);"></i> — індикатор означає, що до цього предмета є невиконані завдання.</p>
+                <div class="schedule-container" id="scheduleContainer"></div>
+            </section>
+
+            <!-- ЗАВДАННЯ -->
+            <section id="tasks" class="page-section">
+                <header class="page-header flex-between flex-wrap gap-15">
+                    <h1 class="mb-0">📝 Завдання</h1>
+                    <button class="btn btn-primary" id="btnAddTask"><i class="fas fa-plus"></i> Додати завдання</button>
+                </header>
+                <div class="controls-bar card mb-15">
+                    <div class="form-group mb-0" style="flex-grow: 1;">
+                        <input type="text" id="taskSearchInput" class="form-control" placeholder="🔍 Пошук за назвою або текстом...">
+                    </div>
+                    <div class="form-group mb-0" style="min-width: 220px;">
+                        <select id="taskSortSelect" class="form-control">
+                            <option value="deadline">Сортувати: За дедлайном</option>
+                            <option value="subject">Сортувати: За предметом</option>
+                            <option value="date">Сортувати: Спочатку нові</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="filters mb-15">
+                    <button class="filter-btn active" data-filter="pending">Невиконані</button>
+                    <button class="filter-btn" data-filter="completed">Виконані</button>
+                    <button class="filter-btn" data-filter="all">Усі</button>
+                    <button class="filter-btn" data-filter="overdue">Прострочені</button>
+                </div>
+                <div class="tasks-grid" id="tasksGrid"></div>
+            </section>
+
+            <!-- КАЛЕНДАР ЗАВДАНЬ -->
+            <section id="calendar" class="page-section">
+                <header class="page-header flex-between flex-wrap gap-15">
+                    <h1 class="mb-0">🗓️ Календар дедлайнів</h1>
+                    <div class="calendar-controls">
+                        <button class="btn btn-outline btn-sm" id="btnPrevMonth"><i class="fas fa-chevron-left"></i></button>
+                        <h3 id="calendarMonthYear" style="min-width: 150px; text-align: center; margin: 0;"></h3>
+                        <button class="btn btn-outline btn-sm" id="btnNextMonth"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                </header>
+                <div class="card p-0">
+                    <div class="calendar-wrapper">
+                        <div class="calendar-header">
+                            <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Нд</div>
+                        </div>
+                        <div class="calendar-grid" id="calendarGrid"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- СТОРІНКА КОНКРЕТНОГО ДНЯ З КАЛЕНДАРЯ -->
+            <section id="day-details" class="page-section">
+                <header class="page-header flex-start gap-15">
+                    <button class="btn btn-outline" id="btnBackToCalendar"><i class="fas fa-arrow-left"></i> Назад до календаря</button>
+                    <h1 id="dayDetailTitle" class="mb-0">Дата</h1>
+                </header>
+                <div class="tasks-grid" id="dayTasksGrid"></div>
+            </section>
+
+            <!-- ПРЕДМЕТИ (Список) -->
+            <section id="subjects" class="page-section">
+                <header class="page-header"><h1>📚 Мої предмети</h1></header>
+                <div class="subjects-grid" id="subjectsGrid"></div>
+            </section>
+
+            <!-- СТОРІНКА КОНКРЕТНОГО ПРЕДМЕТА -->
+            <section id="subject-details" class="page-section">
+                <header class="page-header flex-start gap-15">
+                    <button class="btn btn-outline" id="btnBackToSubjects"><i class="fas fa-arrow-left"></i> Назад</button>
+                    <h1 id="subjectDetailTitle" class="mb-0">Назва предмета</h1>
+                </header>
+                <div class="subject-panels">
+                    <div class="card panel-card">
+                        <div class="flex-between mb-15"><h2>📝 Конспекти</h2><button class="btn btn-primary btn-sm" onclick="triggerFileUpload('notes')"><i class="fas fa-plus"></i></button></div>
+                        <div class="files-list" id="subjectNotesList"></div>
+                    </div>
+                    <div class="card panel-card mt-20">
+                        <div class="flex-between mb-15">
+                            <h2>📚 Література</h2>
+                            <div class="btn-group">
+                                <button class="btn btn-outline btn-sm" onclick="triggerSubjectLink()"><i class="fas fa-link"></i></button>
+                                <button class="btn btn-primary btn-sm" onclick="triggerFileUpload('literature')"><i class="fas fa-file-upload"></i></button>
+                            </div>
+                        </div>
+                        <div class="files-list" id="subjectLiteratureList"></div>
+                    </div>
+                    <div class="card panel-card mt-20">
+                        <div class="flex-between mb-15"><h2>ℹ️ Додаткова інформація</h2></div>
+                        <div class="form-group">
+                            <textarea id="additionalInfoText" class="form-control" rows="5" placeholder="Нотатки, вимоги викладача, теми для семінарів..."></textarea>
+                            <button class="btn btn-primary btn-sm mt-2" onclick="saveAdditionalInfo()"><i class="fas fa-save"></i> Зберегти</button>
+                        </div>
+                        <div class="flex-between mb-15" style="margin-top: 20px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
+                            <h3 style="font-size: 15px;">📎 Файли до предмету</h3>
+                            <button class="btn btn-outline btn-sm" onclick="triggerFileUpload('additional')"><i class="fas fa-plus"></i></button>
+                        </div>
+                        <div class="files-list" id="subjectAdditionalFilesList"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- СЕМІНАРИ -->
+            <section id="seminars-tab" class="page-section">
+                <header class="page-header"><h1>📝 Семінари</h1></header>
+                <div class="subjects-grid" id="seminarsGrid"></div>
+            </section>
+            <section id="seminar-details" class="page-section">
+                <header class="page-header flex-start gap-15">
+                    <button class="btn btn-outline" id="btnBackToSeminars"><i class="fas fa-arrow-left"></i> Назад</button>
+                    <h1 id="seminarDetailTitle" class="mb-0">Назва предмета</h1>
+                </header>
+                
+                <div class="card panel-card mb-20" id="seminarTasksContainer">
+                    <div class="flex-between mb-15"><h2>📝 Завдання до семінарів</h2></div>
+                    <div class="tasks-grid" id="seminarTasksList" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px;"></div>
+                </div>
+
+                <div class="card panel-card">
+                    <div class="flex-between mb-15"><h2>📁 Матеріали семінарів</h2><button class="btn btn-primary btn-sm" onclick="triggerFileUpload('seminars')"><i class="fas fa-plus"></i></button></div>
+                    <div class="files-list" id="seminarFilesList"></div>
+                </div>
+            </section>
+
+            <!-- НАЛАШТУВАННЯ -->
+            <section id="settings" class="page-section">
+                <header class="page-header"><h1>⚙️ Налаштування</h1></header>
+                <div class="card settings-card">
+                    <div class="form-group"><label>Ім'я студента</label><input type="text" id="setStudentName" class="form-control"></div>
+                    <div class="form-group"><label>Група іноземної мови</label><select id="setLangGroup" class="form-control"><option value="1">1 група (Ступенко)</option><option value="2">2 група (Юзефович)</option></select></div>
+                    <div class="form-group theme-switch-wrapper"><label>Темна тема</label><label class="switch"><input type="checkbox" id="themeToggle"><span class="slider round"></span></label></div>
+                    <button class="btn btn-primary" id="btnSaveSettings">Зберегти налаштування</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- МОДАЛЬНЕ ВІКНО АВТОРИЗАЦІЇ / РЕЄСТРАЦІЇ -->
+    <div class="modal" id="authModal">
+        <div class="modal-content" style="max-width: 380px;">
+            <span class="close-modal" id="closeAuthModal">&times;</span>
+            <h2 id="authModalTitle" style="margin-bottom: 15px;">Вхід до кабінету</h2>
+            <form id="authForm">
+                <div class="form-group">
+                    <label>Електронна пошта</label>
+                    <input type="email" id="authEmail" class="form-control" placeholder="student@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Пароль</label>
+                    <input type="password" id="authPassword" class="form-control" placeholder="••••••••" required>
+                </div>
+                <div id="authError" class="text-danger mb-15" style="display:none; font-size: 13px; color: var(--danger);"></div>
+                <button type="submit" class="btn btn-primary w-100 mb-10" id="btnAuthSubmit">Увійти</button>
+                <button type="button" class="btn btn-outline w-100" id="btnToggleAuthMode">Немає акаунта? Зареєструватися</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальне вікно СТВОРЕННЯ / РЕДАГУВАННЯ завдання -->
+    <div class="modal" id="taskModal">
+        <div class="modal-content">
+            <span class="close-modal" id="closeTaskModal">&times;</span>
+            <h2 id="taskModalTitle">Нове завдання</h2>
+            <form id="taskForm">
+                <input type="hidden" id="editTaskId" value="">
+                
+                <div class="form-group flex-between gap-15">
+                    <div style="flex:1;">
+                        <label>Предмет</label>
+                        <select id="taskSubject" class="form-control" required></select>
+                    </div>
+                    <div style="flex:1;">
+                        <label>Тип завдання</label>
+                        <select id="taskType" class="form-control" required>
+                            <option value="Завдання" selected>Завдання</option>
+                            <option value="Тест">Тест</option>
+                            <option value="Семінар">Семінар</option>
+                            <option value="Перевірка">Перевірка</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Назва завдання</label>
+                    <input type="text" id="taskTitle" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label>Опис</label>
+                    <textarea id="taskDesc" class="form-control" rows="5"></textarea>
+                </div>
+                <div class="form-group flex-between gap-15">
+                    <div style="flex:1;">
+                        <label>Дедлайн</label>
+                        <input type="date" id="taskDeadline" class="form-control" required>
+                    </div>
+                    <div style="flex:1;">
+                        <label>Статус</label>
+                        <select id="taskStatus" class="form-control">
+                            <option value="pending">Не виконано</option>
+                            <option value="completed">Виконано</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary w-100"><i class="fas fa-save"></i> Зберегти</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальне вікно ДЕТАЛЬНОГО ПЕРЕГЛЯДУ завдання -->
+    <div class="modal" id="taskDetailsModal">
+        <div class="modal-content task-details-modal-content">
+            <span class="close-modal" id="closeTaskDetailsModal">&times;</span>
+            
+            <div class="detail-header-badges" id="detailTaskBadges"></div>
+            <h2 id="detailTaskTitle" class="detail-task-title">Назва завдання</h2>
+            <div class="detail-task-deadline" id="detailTaskDeadline"></div>
+
+            <div class="detail-desc-box">
+                <div class="detail-section-label">Опис завдання:</div>
+                <div id="detailTaskDesc" class="detail-task-desc"></div>
+            </div>
+
+            <div class="materials-section">
+                <div class="flex-between mb-15">
+                    <span class="detail-section-label" style="margin-bottom: 0;">📎 Матеріали до завдання:</span>
+                    <button class="btn btn-outline btn-sm" id="btnAddDetailTaskFile"><i class="fas fa-plus"></i> Додати файл</button>
+                </div>
+                <div class="files-list" id="detailTaskFilesList"></div>
+            </div>
+
+            <div class="detail-modal-footer">
+                <button class="btn btn-primary" id="detailBtnToggleStatus">✓ Виконати</button>
+                <div class="flex-end gap-10">
+                    <button class="btn btn-outline btn-sm" id="detailBtnEdit"><i class="fas fa-pen"></i> Редагувати</button>
+                    <button class="btn btn-outline btn-sm text-danger" style="border-color: var(--danger);" id="detailBtnDelete"><i class="fas fa-trash"></i> Видалити</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Перегляд файлів та підтвердження -->
+    <div class="modal" id="viewerModal"><div class="modal-content viewer-modal-content"><div class="viewer-header flex-between mb-15"><h3 id="viewerTitle">Перегляд</h3><div class="viewer-actions"><button class="btn btn-primary btn-sm" id="btnDownloadViewer"><i class="fas fa-download"></i></button><button class="btn btn-outline btn-sm" id="closeViewerBtn"><i class="fas fa-times"></i></button></div></div><div class="viewer-body" id="viewerBody"></div></div></div>
+    <div class="modal" id="deleteConfirmModal" style="z-index: 2000;"><div class="modal-content" style="max-width: 350px; text-align: center;"><i class="fas fa-exclamation-triangle text-danger" style="font-size: 40px; margin-bottom: 15px;"></i><h3>Видалити?</h3><p class="text-muted" style="margin-bottom: 20px;">Дію неможливо скасувати.</p><div class="flex-between gap-15"><button class="btn btn-outline w-100" id="btnCancelDelete">Ні</button><button class="btn btn-primary w-100" style="background: var(--danger);" id="btnConfirmDelete">Так</button></div></div></div>
+    
+    <input type="file" id="globalFileInput" hidden>
+
+    <!-- ПІДКЛЮЧЕННЯ FIREBASE SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <!-- Твій JavaScript -->
+    <script src="app.js"></script>
+</body>
+</html>
