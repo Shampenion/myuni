@@ -2,7 +2,7 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Мій Університет</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -11,7 +11,7 @@
 <body>
     <div class="app-container">
         <!-- Мобільне меню -->
-        <button class="mobile-menu-btn" id="mobileMenuBtn"><i class="fas fa-bars"></i></button>
+        <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Меню"><i class="fas fa-bars"></i></button>
         
         <!-- Ліва панель навігації -->
         <aside class="sidebar" id="sidebar">
@@ -30,8 +30,8 @@
                 <a href="#" class="nav-item" data-target="settings"><i class="fas fa-cog"></i> ⚙️ Налаштування</a>
             </nav>
             <!-- Блок профілю внизу бокового меню -->
-            <div class="sidebar-footer" style="border-top: 1px solid var(--border-color); margin-top: auto; padding: 15px;">
-                <div id="userDisplay" style="font-size: 13px; margin-bottom: 8px; color: var(--text-muted); word-break: break-all;">Не авторизовано</div>
+            <div class="sidebar-footer" style="border-top: 1px solid var(--border-color); margin-top: auto; padding-top: 15px;">
+                <div id="userDisplay" style="font-size: 13px; margin-bottom: 10px; color: var(--text-muted); word-break: break-all;">Не авторизовано</div>
                 <button class="btn btn-outline btn-sm w-100" id="btnAuthAction"><i class="fas fa-sign-in-alt"></i> Увійти</button>
             </div>
         </aside>
@@ -43,24 +43,24 @@
             <section id="home" class="page-section active">
                 <header class="page-header">
                     <h1 id="greetingName">Привіт, Студенте! 👋</h1>
-                    <div class="date-info">
-                        <span id="currentDate"></span> • <span id="currentWeekTypeBadge" class="badge-week">Верхній тиждень</span>
+                    <div class="date-info" style="margin-top: 5px; color: var(--text-muted); font-size: 14px;">
+                        <span id="currentDate"></span> • <span id="currentWeekTypeBadge" class="badge-week" style="color: var(--primary-color); font-weight: 600;">Верхній тиждень</span>
                     </div>
                 </header>
                 <div class="dashboard-grid">
                     <div class="card next-class-card">
-                        <h3><i class="fas fa-clock"></i> Найближча пара</h3>
+                        <h3 class="mb-15"><i class="fas fa-clock" style="color: var(--primary-color);"></i> Найближча пара</h3>
                         <div id="nextClassWidget" class="widget-content"></div>
                     </div>
                     <div class="card stats-card">
-                        <h3><i class="fas fa-chart-pie"></i> Статистика завдань</h3>
-                        <div class="stat-item">
+                        <h3 class="mb-15"><i class="fas fa-chart-pie" style="color: var(--primary-color);"></i> Статистика завдань</h3>
+                        <div class="stat-item" style="font-size: 16px; margin-bottom: 12px;">
                             <span>Не виконано:</span> <strong id="uncompletedCount" class="text-danger">0</strong>
                         </div>
-                        <button class="btn btn-outline mt-2" onclick="document.querySelector('[data-target=\'tasks\']').click()">Перейти до завдань</button>
+                        <button class="btn btn-outline w-100 mt-2" onclick="document.querySelector('[data-target=\'tasks\']').click()">Перейти до завдань</button>
                     </div>
                 </div>
-                <h3 class="section-title">Розклад на сьогодні</h3>
+                <h3 class="section-title mb-15">Розклад на сьогодні</h3>
                 <div id="todaySchedule" class="schedule-list"></div>
             </section>
 
@@ -68,7 +68,7 @@
             <section id="schedule" class="page-section">
                 <header class="page-header flex-between flex-wrap gap-15">
                     <h1 class="mb-0">📅 Розклад</h1>
-                    <div class="week-toggle">
+                    <div class="week-toggle card p-0" style="display: flex; padding: 4px !important;">
                         <button class="btn btn-toggle active" id="btnUpperWeek">ВЕРХНІЙ ТИЖДЕНЬ</button>
                         <button class="btn btn-toggle" id="btnLowerWeek">НИЖНІЙ ТИЖДЕНЬ</button>
                     </div>
@@ -85,7 +85,7 @@
                 </header>
                 <div class="controls-bar card mb-15">
                     <div class="form-group mb-0" style="flex-grow: 1;">
-                        <input type="text" id="taskSearchInput" class="form-control" placeholder="🔍 Пошук за назвою або текстом...">
+                        <input type="text" id="taskSearchInput" class="form-control" placeholder="🔍 Пошук за назвою або предметом...">
                     </div>
                     <div class="form-group mb-0" style="min-width: 220px;">
                         <select id="taskSortSelect" class="form-control">
@@ -110,7 +110,7 @@
                     <h1 class="mb-0">🗓️ Календар дедлайнів</h1>
                     <div class="calendar-controls">
                         <button class="btn btn-outline btn-sm" id="btnPrevMonth"><i class="fas fa-chevron-left"></i></button>
-                        <h3 id="calendarMonthYear" style="min-width: 150px; text-align: center; margin: 0;"></h3>
+                        <h3 id="calendarMonthYear" style="min-width: 140px; text-align: center; margin: 0;"></h3>
                         <button class="btn btn-outline btn-sm" id="btnNextMonth"><i class="fas fa-chevron-right"></i></button>
                     </div>
                 </header>
@@ -126,9 +126,9 @@
 
             <!-- СТОРІНКА КОНКРЕТНОГО ДНЯ З КАЛЕНДАРЯ -->
             <section id="day-details" class="page-section">
-                <header class="page-header flex-start gap-15">
-                    <button class="btn btn-outline" id="btnBackToCalendar"><i class="fas fa-arrow-left"></i> Назад до календаря</button>
-                    <h1 id="dayDetailTitle" class="mb-0">Дата</h1>
+                <header class="page-header flex-start flex-wrap gap-15">
+                    <button class="btn btn-outline btn-sm" id="btnBackToCalendar"><i class="fas fa-arrow-left"></i> Назад</button>
+                    <h1 id="dayDetailTitle" class="mb-0" style="font-size: 22px;">Дата</h1>
                 </header>
                 <div class="tasks-grid" id="dayTasksGrid"></div>
             </section>
@@ -141,14 +141,14 @@
 
             <!-- СТОРІНКА КОНКРЕТНОГО ПРЕДМЕТА -->
             <section id="subject-details" class="page-section">
-                <header class="page-header flex-start gap-15">
-                    <button class="btn btn-outline" id="btnBackToSubjects"><i class="fas fa-arrow-left"></i> Назад</button>
-                    <h1 id="subjectDetailTitle" class="mb-0">Назва предмета</h1>
+                <header class="page-header flex-start flex-wrap gap-15">
+                    <button class="btn btn-outline btn-sm" id="btnBackToSubjects"><i class="fas fa-arrow-left"></i> Назад</button>
+                    <h1 id="subjectDetailTitle" class="mb-0" style="font-size: 22px;">Назва предмета</h1>
                 </header>
                 <div class="subject-panels">
                     <div class="card panel-card">
                         <div class="flex-between mb-15">
-                            <h2>📝 Конспекти</h2>
+                            <h2 style="font-size: 18px;">📝 Конспекти</h2>
                             <div class="btn-group">
                                 <button class="btn btn-outline btn-sm" onclick="triggerGoogleDriveLink('notes')" title="Додати з Google Диска"><i class="fab fa-google-drive"></i> Диск</button>
                                 <button class="btn btn-primary btn-sm" onclick="triggerFileUpload('notes')" title="Завантажити локальний файл"><i class="fas fa-plus"></i></button>
@@ -158,7 +158,7 @@
                     </div>
                     <div class="card panel-card mt-20">
                         <div class="flex-between mb-15">
-                            <h2>📚 Література</h2>
+                            <h2 style="font-size: 18px;">📚 Література</h2>
                             <div class="btn-group">
                                 <button class="btn btn-outline btn-sm" onclick="triggerGoogleDriveLink('literature')" title="Додати з Google Диска"><i class="fab fa-google-drive"></i> Диск</button>
                                 <button class="btn btn-outline btn-sm" onclick="triggerSubjectLink()" title="Додати веб-посилання"><i class="fas fa-link"></i></button>
@@ -168,7 +168,7 @@
                         <div class="files-list" id="subjectLiteratureList"></div>
                     </div>
                     <div class="card panel-card mt-20">
-                        <div class="flex-between mb-15"><h2>ℹ️ Додаткова інформація</h2></div>
+                        <div class="flex-between mb-15"><h2 style="font-size: 18px;">ℹ️ Додаткова інформація</h2></div>
                         <div class="form-group">
                             <textarea id="additionalInfoText" class="form-control" rows="5" placeholder="Нотатки, вимоги викладача, теми для семінарів..."></textarea>
                             <button class="btn btn-primary btn-sm mt-2" onclick="saveAdditionalInfo()"><i class="fas fa-save"></i> Зберегти</button>
@@ -191,19 +191,19 @@
                 <div class="subjects-grid" id="seminarsGrid"></div>
             </section>
             <section id="seminar-details" class="page-section">
-                <header class="page-header flex-start gap-15">
-                    <button class="btn btn-outline" id="btnBackToSeminars"><i class="fas fa-arrow-left"></i> Назад</button>
-                    <h1 id="seminarDetailTitle" class="mb-0">Назва предмета</h1>
+                <header class="page-header flex-start flex-wrap gap-15">
+                    <button class="btn btn-outline btn-sm" id="btnBackToSeminars"><i class="fas fa-arrow-left"></i> Назад</button>
+                    <h1 id="seminarDetailTitle" class="mb-0" style="font-size: 22px;">Назва предмета</h1>
                 </header>
                 
                 <div class="card panel-card mb-20" id="seminarTasksContainer">
-                    <div class="flex-between mb-15"><h2>📝 Завдання до семінарів</h2></div>
-                    <div class="tasks-grid" id="seminarTasksList" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px;"></div>
+                    <div class="flex-between mb-15"><h2 style="font-size: 18px;">📝 Завдання до семінарів</h2></div>
+                    <div class="tasks-grid" id="seminarTasksList"></div>
                 </div>
 
                 <div class="card panel-card">
                     <div class="flex-between mb-15">
-                        <h2>📁 Матеріали семінарів</h2>
+                        <h2 style="font-size: 18px;">📁 Матеріали семінарів</h2>
                         <div class="btn-group">
                             <button class="btn btn-outline btn-sm" onclick="triggerGoogleDriveLink('seminars')" title="Додати з Google Диска"><i class="fab fa-google-drive"></i> Диск</button>
                             <button class="btn btn-primary btn-sm" onclick="triggerFileUpload('seminars')"><i class="fas fa-plus"></i></button>
@@ -216,11 +216,11 @@
             <!-- НАЛАШТУВАННЯ -->
             <section id="settings" class="page-section">
                 <header class="page-header"><h1>⚙️ Налаштування</h1></header>
-                <div class="card settings-card">
+                <div class="card settings-card" style="max-width: 500px;">
                     <div class="form-group"><label>Ім'я студента</label><input type="text" id="setStudentName" class="form-control"></div>
                     <div class="form-group"><label>Група іноземної мови</label><select id="setLangGroup" class="form-control"><option value="1">1 група (Ступенко)</option><option value="2">2 група (Юзефович)</option></select></div>
-                    <div class="form-group theme-switch-wrapper"><label>Темна тема</label><label class="switch"><input type="checkbox" id="themeToggle"><span class="slider round"></span></label></div>
-                    <button class="btn btn-primary" id="btnSaveSettings">Зберегти налаштування</button>
+                    <div class="form-group flex-between" style="flex-direction: row !important;"><label class="mb-0">Темна тема</label><label class="switch"><input type="checkbox" id="themeToggle"><span class="slider round"></span></label></div>
+                    <button class="btn btn-primary w-100 mt-2" id="btnSaveSettings">Зберегти налаштування</button>
                 </div>
             </section>
         </main>
@@ -251,16 +251,16 @@
     <div class="modal" id="taskModal">
         <div class="modal-content">
             <span class="close-modal" id="closeTaskModal">&times;</span>
-            <h2 id="taskModalTitle">Нове завдання</h2>
+            <h2 id="taskModalTitle" class="mb-15">Нове завдання</h2>
             <form id="taskForm">
                 <input type="hidden" id="editTaskId" value="">
                 
-                <div class="form-group flex-between gap-15">
-                    <div style="flex:1;">
+                <div class="form-group flex-between gap-15" style="flex-direction: row !important; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 140px;">
                         <label>Предмет</label>
                         <select id="taskSubject" class="form-control" required></select>
                     </div>
-                    <div style="flex:1;">
+                    <div style="flex: 1; min-width: 140px;">
                         <label>Тип завдання</label>
                         <select id="taskType" class="form-control" required>
                             <option value="Завдання" selected>Завдання</option>
@@ -277,14 +277,14 @@
                 </div>
                 <div class="form-group">
                     <label>Опис</label>
-                    <textarea id="taskDesc" class="form-control" rows="5"></textarea>
+                    <textarea id="taskDesc" class="form-control" rows="4"></textarea>
                 </div>
-                <div class="form-group flex-between gap-15">
-                    <div style="flex:1;">
+                <div class="form-group flex-between gap-15" style="flex-direction: row !important; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 140px;">
                         <label>Дедлайн</label>
                         <input type="date" id="taskDeadline" class="form-control" required>
                     </div>
-                    <div style="flex:1;">
+                    <div style="flex: 1; min-width: 140px;">
                         <label>Статус</label>
                         <select id="taskStatus" class="form-control">
                             <option value="pending">Не виконано</option>
@@ -335,22 +335,23 @@
     <!-- Перегляд файлів та підтвердження -->
     <div class="modal" id="viewerModal">
         <div class="modal-content viewer-modal-content">
-            <div class="viewer-header flex-between mb-15">
-                <h3 id="viewerTitle">Перегляд</h3>
+            <div class="viewer-header flex-between mb-10">
+                <h3 id="viewerTitle" style="font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 75%;">Перегляд</h3>
                 <div class="viewer-actions">
-                    <button class="btn btn-primary btn-sm" id="btnDownloadViewer" title="Відкрити / Завантажити"><i class="fas fa-external-link-alt"></i></button>
+                    <button class="btn btn-primary btn-sm" id="btnDownloadViewer" title="Відкрити у новій вкладці / Завантажити"><i class="fas fa-external-link-alt"></i></button>
                     <button class="btn btn-outline btn-sm" id="closeViewerBtn"><i class="fas fa-times"></i></button>
                 </div>
             </div>
             <div class="viewer-body" id="viewerBody"></div>
         </div>
     </div>
+
     <div class="modal" id="deleteConfirmModal" style="z-index: 2000;">
         <div class="modal-content" style="max-width: 350px; text-align: center;">
             <i class="fas fa-exclamation-triangle text-danger" style="font-size: 40px; margin-bottom: 15px;"></i>
             <h3>Видалити?</h3>
             <p class="text-muted" style="margin-bottom: 20px;">Дію неможливо скасувати.</p>
-            <div class="flex-between gap-15">
+            <div class="flex-between gap-15" style="flex-direction: row !important;">
                 <button class="btn btn-outline w-100" id="btnCancelDelete">Ні</button>
                 <button class="btn btn-primary w-100" style="background: var(--danger);" id="btnConfirmDelete">Так</button>
             </div>
@@ -364,7 +365,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
-    <!-- Твій JavaScript -->
+    <!-- Головний скрипт -->
     <script src="app.js"></script>
 </body>
 </html>
