@@ -95,13 +95,13 @@ function updateAdminUI() {
     const btnAddTask = document.getElementById('btnAddTask');
     if (btnAddTask) btnAddTask.style.display = adminMode ? 'inline-flex' : 'none';
 
-    // Всі кнопки додавання файлів до предметів і семінарів
+    // Всі кнопки додавання файлів до предметів і семінарів (включно з Google Диском)
     const uploadButtons = document.querySelectorAll('.panel-card button, #subject-details button:not(#btnBackToSubjects), #seminar-details button:not(#btnBackToSeminars)');
     uploadButtons.forEach(btn => {
         if (btn.innerText.includes('Зберегти')) {
             btn.style.display = adminMode ? 'inline-block' : 'none';
         }
-        if (btn.querySelector('.fa-plus') || btn.querySelector('.fa-file-upload') || btn.querySelector('.fa-link') || btn.querySelector('.fa-google-drive')) {
+        if (btn.querySelector('.fa-plus') || btn.querySelector('.fa-file-upload') || btn.querySelector('.fa-link') || btn.querySelector('.fa-google-drive') || btn.innerHTML.includes('Диск')) {
             btn.style.display = adminMode ? 'inline-flex' : 'none';
         }
     });
@@ -119,7 +119,6 @@ function updateAdminUI() {
     const additionalInfoArea = document.getElementById('additionalInfoText');
     if (additionalInfoArea) additionalInfoArea.readOnly = !adminMode;
 }
-
 // Збереження даних
 function saveData() {
     // 1. Локальний кеш
@@ -747,19 +746,19 @@ function renderFileList(containerId, filesArray, sourceObj) {
 // Додавання документа через Google Диск (або прямий URL)
 function triggerGoogleDriveLink(targetType, taskId = null) {
     if (!isAdmin()) { 
-        alert("Лише адміністратор може додавати матеріали."); 
+        alert("Увійдіть під акаунтом адміністратора (brigadir1904@gmail.com), щоб додавати матеріали!"); 
         return; 
     }
 
-    const rawUrl = prompt("Вставте посилання на файл із Google Диска (або інше посилання):");
+    const rawUrl = prompt("Вставте посилання на файл або папку з Google Диска:");
     if (!rawUrl || !rawUrl.trim()) return;
 
-    let defaultName = "Матеріал з Google Диска";
-    const name = prompt("Введіть назву документа (наприклад: Конспект лекції / Підручник):", defaultName);
+    let defaultName = "Конспект з Google Диска";
+    const name = prompt("Введіть назву документа (наприклад: Лекція 1 / Самохвалов):", defaultName);
     if (!name || !name.trim()) return;
 
     let fileUrl = rawUrl.trim();
-    // Конвертація посилання Google Drive /view у /preview для зручного перегляду у вікні
+    // Перетворюємо посилання Google Drive на вбудований перегляд
     if (fileUrl.includes('drive.google.com/file/d/')) {
         fileUrl = fileUrl.replace(/\/view(\?.*)?$/, '/preview');
     }
@@ -782,6 +781,9 @@ function triggerGoogleDriveLink(targetType, taskId = null) {
         }
     } else {
         const sub = state.currentViewParams.name;
+        if (!state.subjectData[sub]) {
+            state.subjectData[sub] = { notes: [], literature: [], seminars: [], additional_info: { text: '', files: [] } };
+        }
         if (targetType === 'notes') state.subjectData[sub].notes.push(driveObj);
         else if (targetType === 'literature') state.subjectData[sub].literature.push(driveObj);
         else if (targetType === 'additional') state.subjectData[sub].additional_info.files.push(driveObj);
@@ -790,6 +792,8 @@ function triggerGoogleDriveLink(targetType, taskId = null) {
     }
 
     saveData();
+    alert("Матеріал успішно додано!");
+}
 }
 
 const globalInput = document.getElementById('globalFileInput');
