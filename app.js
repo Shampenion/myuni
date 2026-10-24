@@ -11,15 +11,17 @@ const firebaseConfig = {
     measurementId: "G-QL7PBB6GPG"
 };
 
-// Безпечна ініціалізація Firebase
+// Безпечна ініціалізація Firebase (захист від блокувальників реклами)
 let auth = null;
 let db = null;
 try {
-    if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
+    if (typeof firebase !== 'undefined') {
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        auth = firebase.auth();
+        db = firebase.firestore();
     }
-    auth = firebase.auth();
-    db = firebase.firestore();
 } catch (e) {
     console.error("Помилка ініціалізації Firebase:", e);
 }
@@ -31,7 +33,7 @@ function isAdmin() {
     return currentUser && currentUser.email && currentUser.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 }
 
-// Безпечна робота з localStorage (захист для Safari та мобільних браузерів)
+// Безпечна робота з localStorage (для приватних режимів Safari/Chrome)
 function safeGetStorage(key, fallback) {
     try {
         const val = localStorage.getItem(key);
@@ -45,7 +47,7 @@ function safeSetStorage(key, val) {
     try {
         localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val));
     } catch (e) {
-        console.warn("Локальне сховище обмежене браузером:", e);
+        console.warn("Локальне сховище обмежене браузером.");
     }
 }
 
@@ -97,7 +99,10 @@ const allSubjectsList = [...new Set([...scheduleDB.upper, ...scheduleDB.lower]
     .filter(c => c.type !== 'window').map(c => c.subject.split('(')[0].trim()))];
 
 let savedWeekType = 'upper';
-try { savedWeekType = localStorage.getItem('weekType') || 'upper'; } catch(e) {}
+try {
+    const val = localStorage.getItem('weekType');
+    if (val === 'upper' || val === 'lower') savedWeekType = val;
+} catch(e) {}
 
 let state = {
     weekType: savedWeekType,
@@ -130,15 +135,12 @@ ensureSubjectDataStructure();
 // ==================== 3. СИНХРОНІЗАЦІЯ ДАНИХ (ADMIN vs USER) ====================
 function updateAdminUI() {
     const adminMode = isAdmin();
-    
     const btnAddTask = document.getElementById('btnAddTask');
     if (btnAddTask) btnAddTask.style.display = adminMode ? 'inline-flex' : 'none';
 
     const uploadButtons = document.querySelectorAll('.panel-card button, #subject-details button:not(#btnBackToSubjects), #seminar-details button:not(#btnBackToSeminars)');
     uploadButtons.forEach(btn => {
-        if (btn.innerText.includes('Зберегти')) {
-            btn.style.display = adminMode ? 'inline-block' : 'none';
-        }
+        if (btn.innerText.includes('Зберегти')) btn.style.display = adminMode ? 'inline-block' : 'none';
         if (btn.querySelector('.fa-plus') || btn.querySelector('.fa-file-upload') || btn.querySelector('.fa-link') || btn.querySelector('.fa-google-drive') || btn.innerHTML.includes('Диск')) {
             btn.style.display = adminMode ? 'inline-flex' : 'none';
         }
@@ -277,11 +279,9 @@ function setupAuthEventListeners() {
             }
         });
     }
-
     if (closeAuthModal && authModal) {
         closeAuthModal.addEventListener('click', () => authModal.style.display = 'none');
     }
-
     if (btnToggleAuthMode) {
         btnToggleAuthMode.addEventListener('click', () => {
             isSignUpMode = !isSignUpMode;
@@ -292,7 +292,6 @@ function setupAuthEventListeners() {
             if (authError) authError.style.display = 'none';
         });
     }
-
     if (authForm) {
         authForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -320,7 +319,7 @@ function setupAuthEventListeners() {
     }
 }
 
-// ==================== 5. INDEXED DB (БЕЗПЕЧНА ОБГОРТКА ДЛЯ МОБІЛЬНИХ) ====================
+// ==================== 5. БЕЗПЕЧНИЙ INDEXED DB (ДЛЯ СТАРИХ ТЕЛЕФОНІВ) ====================
 const dbPromise = new Promise((resolve) => {
     try {
         if (!window.indexedDB) {
@@ -421,13 +420,10 @@ function setupNavigation() {
             sidebar.classList.toggle('open');
         });
     }
-
     const closeSbBtn = document.getElementById('closeSidebar');
     if (closeSbBtn && sidebar) {
         closeSbBtn.addEventListener('click', () => sidebar.classList.remove('open'));
     }
-
-    // Закриття бокового меню при кліку поза ним на телефоні
     document.addEventListener('click', (e) => {
         if (window.innerWidth <= 768 && sidebar && sidebar.classList.contains('open')) {
             if (!sidebar.contains(e.target) && e.target !== mobBtn && (!mobBtn || !mobBtn.contains(e.target))) {
@@ -437,7 +433,6 @@ function setupNavigation() {
     });
 }
 
-// ==================== 8. ТИПИ ТА БЕЙДЖІ ЗАВДАНЬ ====================
 function getTaskTypeClass(type) {
     if (type === 'Тест') return 'type-test';
     if (type === 'Семінар') return 'type-seminar';
@@ -452,7 +447,6 @@ function getTaskTypeBadgeName(type) {
     return 'badge-type-task';
 }
 
-// ==================== 9. РОЗКЛАД ТА ІНДИКАТОРИ ====================
 function getDynamicClassData(c) {
     let d = { ...c };
     if (d.teacher === 'dynamic') {
@@ -606,7 +600,6 @@ function updateDateAndTime() {
     }
 }
 
-// ==================== 10. КАЛЕНДАР ====================
 function renderCalendar() {
     const grid = document.getElementById('calendarGrid'); 
     if (!grid) return;
@@ -734,7 +727,6 @@ function jumpToTask(taskId) {
     }, 100);
 }
 
-// ==================== 11. ПРЕДМЕТИ ТА СЕМІНАРИ ====================
 function renderSubjectsGrid() {
     const grid = document.getElementById('subjectsGrid'); 
     if (!grid) return;
@@ -850,7 +842,6 @@ function renderSeminarTasks(subjectName) {
     }).join('');
 }
 
-// ==================== 12. РОБОТА З ФАЙЛАМИ, ПОСИЛАННЯМИ ТА GOOGLE ДИСКОМ ====================
 function getFileIcon(filename, type) {
     if (type === 'gdrive' || (filename && filename.includes('drive.google.com'))) {
         return '<i class="fab fa-google-drive" style="color: #0F9D58;"></i>';
@@ -871,8 +862,9 @@ function renderFileList(containerId, filesArray, sourceObj) {
     const adminMode = isAdmin();
 
     container.innerHTML = filesArray.map(f => {
-        const safeName = encodeURIComponent(f.name || 'Файл');
-        const safeUrl = encodeURIComponent(f.url || '');
+        // Убезпечення HTML від збою через лапки у назвах
+        const safeName = encodeURIComponent(f.name || 'Файл').replace(/'/g, "%27");
+        const safeUrl = encodeURIComponent(f.url || '').replace(/'/g, "%27");
         return `
         <div class="file-row">
             <div class="file-name-col" onclick="viewFile('${f.id}', '${f.type}', decodeURIComponent('${safeName}'), decodeURIComponent('${safeUrl}'))" title="Відкрити">
@@ -891,7 +883,7 @@ function renderFileList(containerId, filesArray, sourceObj) {
 
 function triggerGoogleDriveLink(targetType, taskId = null) {
     if (!isAdmin()) { 
-        alert("Увійдіть під акаунтом адміністратора (brigadir1904@gmail.com), щоб додавати матеріали!"); 
+        alert("Увійдіть під акаунтом адміністратора, щоб додавати матеріали!"); 
         return; 
     }
 
@@ -932,7 +924,6 @@ function triggerGoogleDriveLink(targetType, taskId = null) {
         else if (targetType === 'seminars') state.subjectData[sub].seminars.push(driveObj);
         openDetailsView(state.currentViewParams.type, sub);
     }
-
     saveData();
     alert("Матеріал успішно додано!");
 }
@@ -1042,7 +1033,6 @@ function renameFile(id, sourceType, taskId) {
 
 async function viewFile(id, type, name, url) {
     if (type === 'gdrive' || (url && url.includes('drive.google.com'))) {
-        // Якщо це папка Google Диска — відкриваємо в новій вкладці, бо папки не підтримують iframe
         if (url.includes('/folders/')) {
             window.open(url, '_blank');
             return;
@@ -1062,7 +1052,7 @@ async function viewFile(id, type, name, url) {
 
     const dbFile = await getFileFromDB(id);
     if (!dbFile) { 
-        alert("Цей файл був збережений локально на іншому пристрої. Щоб файли відкривалися з будь-якого смартфона чи ПК, додавайте їх через кнопку «Диск» (Google Drive)!"); 
+        alert("Цей файл був збережений локально на іншому пристрої. Додайте його через кнопку «Диск» (Google Drive)!"); 
         return; 
     }
     
@@ -1093,11 +1083,19 @@ if (closeViewerBtn) {
 
 async function downloadFileTrigger(id, name, type, url, preloadedData = null) {
     if (type === 'link' || type === 'gdrive') { window.open(url, '_blank'); return; }
-    let fileData = preloadedData || (await getFileFromDB(id))?.data;
-    if (fileData) { const a = document.createElement('a'); a.href = fileData; a.download = name; a.click(); }
+    let fileData = preloadedData;
+    if (!fileData) {
+        const dbResult = await getFileFromDB(id);
+        if (dbResult) fileData = dbResult.data;
+    }
+    if (fileData) { 
+        const a = document.createElement('a'); 
+        a.href = fileData; 
+        a.download = name; 
+        a.click(); 
+    }
 }
 
-// ==================== 13. СИСТЕМА ЗАВДАНЬ ====================
 function renderTasks() {
     const container = document.getElementById('tasksGrid');
     if (!container) return;
@@ -1357,7 +1355,6 @@ window.addEventListener('click', (e) => {
     }
 });
 
-// ==================== 14. ПІДТВЕРДЖЕННЯ ВИДАЛЕННЯ ====================
 let pendingDeleteAction = null;
 function confirmDelete(actionFn) { 
     if (!isAdmin()) { alert("Лише адміністратор може видаляти матеріали."); return; }
@@ -1369,7 +1366,6 @@ if (btnCancelDelete) btnCancelDelete.onclick = () => { pendingDeleteAction = nul
 const btnConfirmDelete = document.getElementById('btnConfirmDelete');
 if (btnConfirmDelete) btnConfirmDelete.onclick = () => { if (pendingDeleteAction) pendingDeleteAction(); document.getElementById('deleteConfirmModal').style.display = 'none'; pendingDeleteAction = null; };
 
-// ==================== 15. НАЛАШТУВАННЯ ТА ТЕМА ====================
 function setupEventListeners() {
     const btnUpper = document.getElementById('btnUpperWeek');
     if (btnUpper) btnUpper.onclick = (e) => switchWeek('upper', e.target);
