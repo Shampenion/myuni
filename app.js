@@ -101,7 +101,7 @@ function updateAdminUI() {
         if (btn.innerText.includes('Зберегти')) {
             btn.style.display = adminMode ? 'inline-block' : 'none';
         }
-        if (btn.querySelector('.fa-plus') || btn.querySelector('.fa-file-upload') || btn.querySelector('.fa-link')) {
+        if (btn.querySelector('.fa-plus') || btn.querySelector('.fa-file-upload') || btn.querySelector('.fa-link') || btn.querySelector('.fa-google-drive')) {
             btn.style.display = adminMode ? 'inline-flex' : 'none';
         }
     });
@@ -110,9 +110,11 @@ function updateAdminUI() {
     const editBtn = document.getElementById('detailBtnEdit');
     const deleteBtn = document.getElementById('detailBtnDelete');
     const addFileBtn = document.getElementById('btnAddTaskFile') || document.getElementById('btnAddDetailTaskFile');
+    const addDriveBtn = document.getElementById('btnAddTaskDriveLink');
     if (editBtn) editBtn.style.display = adminMode ? 'inline-block' : 'none';
     if (deleteBtn) deleteBtn.style.display = adminMode ? 'inline-block' : 'none';
-    if (addFileBtn) addFileBtn.style.display = adminMode ? 'inline-block' : 'none';
+    if (addFileBtn) addFileBtn.style.display = adminMode ? 'inline-flex' : 'none';
+    if (addDriveBtn) addDriveBtn.style.display = adminMode ? 'inline-flex' : 'none';
     
     const additionalInfoArea = document.getElementById('additionalInfoText');
     if (additionalInfoArea) additionalInfoArea.readOnly = !adminMode;
@@ -156,7 +158,6 @@ async function loadGlobalContent() {
             if (data.tasks) state.tasks = data.tasks;
             if (data.subjectData) state.subjectData = { ...state.subjectData, ...data.subjectData };
         } else if (isAdmin()) {
-            // Якщо база порожня і перший раз заходить адмін — публікуємо стартові дані
             saveData();
         }
         syncTasksCompletion();
@@ -191,7 +192,6 @@ async function loadUserData() {
     }
 }
 
-// Синхронізація статусу виконання завдань для поточного користувача
 function syncTasksCompletion() {
     state.tasks.forEach(t => {
         t.completed = state.completedTaskIds.includes(t.id);
@@ -280,7 +280,7 @@ function setupAuthEventListeners() {
     }
 }
 
-// ==================== 5. INDEXED DB (ЗБЕРЕЖЕННЯ ФАЙЛІВ) ====================
+// ==================== 5. INDEXED DB (РЕЗЕРВ ДЛЯ ЛОКАЛЬНИХ ФАЙЛІВ) ====================
 const dbPromise = new Promise((resolve, reject) => {
     const request = indexedDB.open('UniAppFilesDB', 1);
     request.onupgradeneeded = e => e.target.result.createObjectStore('files', { keyPath: 'id' });
@@ -303,7 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupNavigation(); 
     setupEventListeners();
     setupAuthEventListeners();
-    loadGlobalContent(); // Підтягуємо дані з Firestore
+    loadGlobalContent();
     
     setInterval(updateDateAndTime, 60000); 
 });
@@ -711,11 +711,14 @@ function renderSeminarTasks(subjectName) {
     }).join('');
 }
 
-// ==================== 12. РОБОТА З ФАЙЛАМИ ТА ДОКУМЕНТАМИ ====================
+// ==================== 12. РОБОТА З ФАЙЛАМИ, ПОСИЛАННЯМИ ТА GOOGLE ДИСКОМ ====================
 function getFileIcon(filename, type) {
-    if(type === 'link') return '<i class="fas fa-link"></i>';
-    if(filename.endsWith('.pdf')) return '<i class="fas fa-file-pdf" style="color: #e23636;"></i>';
-    if(filename.match(/\.(jpg|jpeg|png)$/i)) return '<i class="fas fa-file-image" style="color: #00a8ff;"></i>';
+    if (type === 'gdrive' || (filename && filename.includes('drive.google.com'))) {
+        return '<i class="fab fa-google-drive" style="color: #0F9D58;"></i>';
+    }
+    if (type === 'link') return '<i class="fas fa-link" style="color: #4285F4;"></i>';
+    if (filename && filename.endsWith('.pdf')) return '<i class="fas fa-file-pdf" style="color: #e23636;"></i>';
+    if (filename && filename.match(/\.(jpg|jpeg|png)$/i)) return '<i class="fas fa-file-image" style="color: #00a8ff;"></i>';
     return '<i class="fas fa-file-alt"></i>';
 }
 
@@ -739,6 +742,54 @@ function renderFileList(containerId, filesArray, sourceObj) {
             </div>
         </div>
     `).join('');
+}
+
+// Додавання документа через Google Диск (або прямий URL)
+function triggerGoogleDriveLink(targetType, taskId = null) {
+    if (!isAdmin()) { 
+        alert("Лише адміністратор може додавати матеріали."); 
+        return; 
+    }
+
+    const rawUrl = prompt("Вставте посилання на файл із Google Диска (або інше посилання):");
+    if (!rawUrl || !rawUrl.trim()) return;
+
+    let defaultName = "Матеріал з Google Диска";
+    const name = prompt("Введіть назву документа (наприклад: Конспект лекції / Підручник):", defaultName);
+    if (!name || !name.trim()) return;
+
+    let fileUrl = rawUrl.trim();
+    // Конвертація посилання Google Drive /view у /preview для зручного перегляду у вікні
+    if (fileUrl.includes('drive.google.com/file/d/')) {
+        fileUrl = fileUrl.replace(/\/view(\?.*)?$/, '/preview');
+    }
+
+    const driveObj = {
+        id: 'gdrive_' + Date.now(),
+        name: name.trim(),
+        type: 'gdrive',
+        url: fileUrl
+    };
+
+    if (targetType === 'task') {
+        const t = state.tasks.find(x => x.id === taskId);
+        if (t) {
+            if (!t.materials) t.materials = [];
+            t.materials.push(driveObj);
+            renderTasks();
+            if (state.currentDetailTaskId === t.id) openTaskDetailsModal(t.id);
+            if (state.currentViewParams && state.currentViewParams.type === 'seminar') renderSeminarTasks(state.currentViewParams.name);
+        }
+    } else {
+        const sub = state.currentViewParams.name;
+        if (targetType === 'notes') state.subjectData[sub].notes.push(driveObj);
+        else if (targetType === 'literature') state.subjectData[sub].literature.push(driveObj);
+        else if (targetType === 'additional') state.subjectData[sub].additional_info.files.push(driveObj);
+        else if (targetType === 'seminars') state.subjectData[sub].seminars.push(driveObj);
+        openDetailsView(state.currentViewParams.type, sub);
+    }
+
+    saveData();
 }
 
 const globalInput = document.getElementById('globalFileInput');
@@ -798,7 +849,9 @@ async function processDeleteFile(id, sourceType, taskId) {
         if(sourceType === 'additional') state.subjectData[sub].additional_info.files = state.subjectData[sub].additional_info.files.filter(f => f.id !== id);
         if(sourceType === 'seminars') state.subjectData[sub].seminars = state.subjectData[sub].seminars.filter(f => f.id !== id);
     }
-    if(!id.startsWith('lnk_')) await deleteFileFromDB(id);
+    if(!id.startsWith('lnk_') && !id.startsWith('gdrive_')) {
+        await deleteFileFromDB(id);
+    }
     saveData(); 
     if (sourceType === 'task') {
         renderTasks();
@@ -835,34 +888,56 @@ function renameFile(id, sourceType, taskId) {
 }
 
 async function viewFile(id, type, name, url) {
-    if(type === 'link') { window.open(url, '_blank'); return; }
+    // 1. Якщо це файл із Google Диска
+    if (type === 'gdrive' || (url && url.includes('drive.google.com'))) {
+        document.getElementById('viewerTitle').textContent = name;
+        const body = document.getElementById('viewerBody');
+        document.getElementById('btnDownloadViewer').onclick = () => window.open(url, '_blank');
+        body.innerHTML = `<iframe src="${url}" style="width:100%; height:75vh; border:none; border-radius: 8px;" allow="autoplay"></iframe>`;
+        document.getElementById('viewerModal').style.display = 'flex';
+        return;
+    }
+
+    // 2. Якщо це звичайне інтернет-посилання
+    if (type === 'link') { 
+        window.open(url, '_blank'); 
+        return; 
+    }
+
+    // 3. Якщо це локальний файл (збережений в IndexedDB браузера)
     const dbFile = await getFileFromDB(id);
-    if(!dbFile) { alert("Файл не знайдено"); return; }
+    if (!dbFile) { 
+        alert("Цей файл був збережений локально і не знайдений. Будь ласка, завантажте його на Google Диск і додайте посилання через кнопку «Диск»!"); 
+        return; 
+    }
     
     document.getElementById('viewerTitle').textContent = name;
     const body = document.getElementById('viewerBody');
     document.getElementById('btnDownloadViewer').onclick = () => downloadFileTrigger(id, name, type, url, dbFile.data);
     
     if (type === 'application/pdf') {
-        body.innerHTML = `<iframe src="${dbFile.data}#toolbar=0"></iframe>`;
+        body.innerHTML = `<iframe src="${dbFile.data}#toolbar=0" style="width:100%; height:75vh; border:none;"></iframe>`;
     } else if (type.startsWith('image/')) {
-        body.innerHTML = `<img src="${dbFile.data}">`;
+        body.innerHTML = `<img src="${dbFile.data}" style="max-width:100%; max-height:75vh; display:block; margin:auto; border-radius: 8px;">`;
     } else if (type.startsWith('text/') || name.endsWith('.txt')) {
         const text = atob(dbFile.data.split(',')[1]); 
-        body.innerHTML = `<pre>${decodeURIComponent(escape(text))}</pre>`;
+        body.innerHTML = `<pre style="white-space: pre-wrap; font-family: inherit;">${decodeURIComponent(escape(text))}</pre>`;
     } else {
-        body.innerHTML = `<div style="padding: 40px;"><i class="fas fa-file-alt" style="font-size: 60px; color: var(--primary-color); margin-bottom: 20px;"></i><h4>Цей формат неможливо переглянути в браузері.</h4><p class="text-muted mt-2">Будь ласка, завантажте файл на комп'ютер.</p></div>`;
+        body.innerHTML = `<div style="padding: 40px; text-align: center;"><i class="fas fa-file-alt" style="font-size: 60px; color: var(--primary-color); margin-bottom: 20px;"></i><h4>Цей формат неможливо переглянути в браузері.</h4><p class="text-muted mt-2">Будь ласка, завантажте файл на комп'ютер.</p></div>`;
     }
     document.getElementById('viewerModal').style.display = 'flex';
 }
 
 const closeViewerBtn = document.getElementById('closeViewerBtn');
 if(closeViewerBtn) {
-    closeViewerBtn.onclick = () => { document.getElementById('viewerModal').style.display = 'none'; document.getElementById('viewerBody').innerHTML = ''; };
+    closeViewerBtn.onclick = () => { 
+        document.getElementById('viewerModal').style.display = 'none'; 
+        document.getElementById('viewerBody').innerHTML = ''; 
+    };
 }
 
 async function downloadFileTrigger(id, name, type, url, preloadedData = null) {
-    if(type === 'link') { window.open(url, '_blank'); return; }
+    if(type === 'link' || type === 'gdrive') { window.open(url, '_blank'); return; }
     let fileData = preloadedData || (await getFileFromDB(id))?.data;
     if(fileData) { const a = document.createElement('a'); a.href = fileData; a.download = name; a.click(); }
 }
@@ -970,6 +1045,12 @@ function openTaskDetailsModal(id) {
         btnAddFile.style.display = isAdmin() ? 'inline-flex' : 'none';
     }
 
+    const btnDriveTask = document.getElementById('btnAddTaskDriveLink');
+    if (btnDriveTask) {
+        btnDriveTask.onclick = () => triggerGoogleDriveLink('task', t.id);
+        btnDriveTask.style.display = isAdmin() ? 'inline-flex' : 'none';
+    }
+
     const toggleBtn = document.getElementById('detailBtnToggleStatus');
     toggleBtn.className = `btn ${t.completed ? 'btn-outline' : 'btn-primary'}`;
     toggleBtn.innerHTML = t.completed ? '<i class="fas fa-undo"></i> Відновити завдання' : '<i class="fas fa-check"></i> Виконати завдання';
@@ -1010,7 +1091,6 @@ if(closeTaskDetailsModal) {
     };
 }
 
-// Зміна статусу виконання студентом (працює для всіх)
 function toggleTaskStatus(id) { 
     const idx = state.completedTaskIds.indexOf(id);
     if (idx > -1) {
@@ -1027,7 +1107,11 @@ function toggleTaskStatus(id) {
 function processDeleteTask(id) {
     if (!isAdmin()) { alert("Лише адміністратор може видаляти завдання."); return; }
     const t = state.tasks.find(x => x.id === id);
-    if(t && t.materials) t.materials.forEach(f => deleteFileFromDB(f.id)); 
+    if(t && t.materials) {
+        t.materials.forEach(f => {
+            if(!f.id.startsWith('lnk_') && !f.id.startsWith('gdrive_')) deleteFileFromDB(f.id);
+        });
+    }
     state.tasks = state.tasks.filter(x => x.id !== id); 
     state.completedTaskIds = state.completedTaskIds.filter(x => x !== id);
     saveData(); 
