@@ -147,15 +147,22 @@
                 </header>
                 <div class="subject-panels">
                     <div class="card panel-card">
-                        <div class="flex-between mb-15"><h2>📝 Конспекти</h2><button class="btn btn-primary btn-sm" onclick="triggerFileUpload('notes')"><i class="fas fa-plus"></i></button></div>
+                        <div class="flex-between mb-15">
+                            <h2>📝 Конспекти</h2>
+                            <div class="btn-group">
+                                <button class="btn btn-outline btn-sm" onclick="triggerGoogleDriveLink('notes')" title="Додати з Google Диска"><i class="fab fa-google-drive"></i> Диск</button>
+                                <button class="btn btn-primary btn-sm" onclick="triggerFileUpload('notes')" title="Завантажити локальний файл"><i class="fas fa-plus"></i></button>
+                            </div>
+                        </div>
                         <div class="files-list" id="subjectNotesList"></div>
                     </div>
                     <div class="card panel-card mt-20">
                         <div class="flex-between mb-15">
                             <h2>📚 Література</h2>
                             <div class="btn-group">
-                                <button class="btn btn-outline btn-sm" onclick="triggerSubjectLink()"><i class="fas fa-link"></i></button>
-                                <button class="btn btn-primary btn-sm" onclick="triggerFileUpload('literature')"><i class="fas fa-file-upload"></i></button>
+                                <button class="btn btn-outline btn-sm" onclick="triggerGoogleDriveLink('literature')" title="Додати з Google Диска"><i class="fab fa-google-drive"></i> Диск</button>
+                                <button class="btn btn-outline btn-sm" onclick="triggerSubjectLink()" title="Додати веб-посилання"><i class="fas fa-link"></i></button>
+                                <button class="btn btn-primary btn-sm" onclick="triggerFileUpload('literature')" title="Завантажити локальний файл"><i class="fas fa-file-upload"></i></button>
                             </div>
                         </div>
                         <div class="files-list" id="subjectLiteratureList"></div>
@@ -168,7 +175,10 @@
                         </div>
                         <div class="flex-between mb-15" style="margin-top: 20px; border-top: 1px dashed var(--border-color); padding-top: 15px;">
                             <h3 style="font-size: 15px;">📎 Файли до предмету</h3>
-                            <button class="btn btn-outline btn-sm" onclick="triggerFileUpload('additional')"><i class="fas fa-plus"></i></button>
+                            <div class="btn-group">
+                                <button class="btn btn-outline btn-sm" onclick="triggerGoogleDriveLink('additional')"><i class="fab fa-google-drive"></i> Диск</button>
+                                <button class="btn btn-outline btn-sm" onclick="triggerFileUpload('additional')"><i class="fas fa-plus"></i></button>
+                            </div>
                         </div>
                         <div class="files-list" id="subjectAdditionalFilesList"></div>
                     </div>
@@ -192,7 +202,13 @@
                 </div>
 
                 <div class="card panel-card">
-                    <div class="flex-between mb-15"><h2>📁 Матеріали семінарів</h2><button class="btn btn-primary btn-sm" onclick="triggerFileUpload('seminars')"><i class="fas fa-plus"></i></button></div>
+                    <div class="flex-between mb-15">
+                        <h2>📁 Матеріали семінарів</h2>
+                        <div class="btn-group">
+                            <button class="btn btn-outline btn-sm" onclick="triggerGoogleDriveLink('seminars')" title="Додати з Google Диска"><i class="fab fa-google-drive"></i> Диск</button>
+                            <button class="btn btn-primary btn-sm" onclick="triggerFileUpload('seminars')"><i class="fas fa-plus"></i></button>
+                        </div>
+                    </div>
                     <div class="files-list" id="seminarFilesList"></div>
                 </div>
             </section>
@@ -298,7 +314,10 @@
             <div class="materials-section">
                 <div class="flex-between mb-15">
                     <span class="detail-section-label" style="margin-bottom: 0;">📎 Матеріали до завдання:</span>
-                    <button class="btn btn-outline btn-sm" id="btnAddDetailTaskFile"><i class="fas fa-plus"></i> Додати файл</button>
+                    <div class="btn-group">
+                        <button class="btn btn-outline btn-sm" id="btnAddTaskDriveLink"><i class="fab fa-google-drive"></i> Диск</button>
+                        <button class="btn btn-outline btn-sm" id="btnAddDetailTaskFile"><i class="fas fa-plus"></i> Файл</button>
+                    </div>
                 </div>
                 <div class="files-list" id="detailTaskFilesList"></div>
             </div>
@@ -314,8 +333,29 @@
     </div>
     
     <!-- Перегляд файлів та підтвердження -->
-    <div class="modal" id="viewerModal"><div class="modal-content viewer-modal-content"><div class="viewer-header flex-between mb-15"><h3 id="viewerTitle">Перегляд</h3><div class="viewer-actions"><button class="btn btn-primary btn-sm" id="btnDownloadViewer"><i class="fas fa-download"></i></button><button class="btn btn-outline btn-sm" id="closeViewerBtn"><i class="fas fa-times"></i></button></div></div><div class="viewer-body" id="viewerBody"></div></div></div>
-    <div class="modal" id="deleteConfirmModal" style="z-index: 2000;"><div class="modal-content" style="max-width: 350px; text-align: center;"><i class="fas fa-exclamation-triangle text-danger" style="font-size: 40px; margin-bottom: 15px;"></i><h3>Видалити?</h3><p class="text-muted" style="margin-bottom: 20px;">Дію неможливо скасувати.</p><div class="flex-between gap-15"><button class="btn btn-outline w-100" id="btnCancelDelete">Ні</button><button class="btn btn-primary w-100" style="background: var(--danger);" id="btnConfirmDelete">Так</button></div></div></div>
+    <div class="modal" id="viewerModal">
+        <div class="modal-content viewer-modal-content">
+            <div class="viewer-header flex-between mb-15">
+                <h3 id="viewerTitle">Перегляд</h3>
+                <div class="viewer-actions">
+                    <button class="btn btn-primary btn-sm" id="btnDownloadViewer" title="Відкрити / Завантажити"><i class="fas fa-external-link-alt"></i></button>
+                    <button class="btn btn-outline btn-sm" id="closeViewerBtn"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="viewer-body" id="viewerBody"></div>
+        </div>
+    </div>
+    <div class="modal" id="deleteConfirmModal" style="z-index: 2000;">
+        <div class="modal-content" style="max-width: 350px; text-align: center;">
+            <i class="fas fa-exclamation-triangle text-danger" style="font-size: 40px; margin-bottom: 15px;"></i>
+            <h3>Видалити?</h3>
+            <p class="text-muted" style="margin-bottom: 20px;">Дію неможливо скасувати.</p>
+            <div class="flex-between gap-15">
+                <button class="btn btn-outline w-100" id="btnCancelDelete">Ні</button>
+                <button class="btn btn-primary w-100" style="background: var(--danger);" id="btnConfirmDelete">Так</button>
+            </div>
+        </div>
+    </div>
     
     <input type="file" id="globalFileInput" hidden>
 
