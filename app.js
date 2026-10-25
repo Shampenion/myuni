@@ -11,7 +11,6 @@ const firebaseConfig = {
     measurementId: "G-QL7PBB6GPG"
 };
 
-// Безпечна ініціалізація Firebase (захист від блокувальників реклами)
 let auth = null;
 let db = null;
 try {
@@ -33,7 +32,6 @@ function isAdmin() {
     return currentUser && currentUser.email && currentUser.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 }
 
-// Безпечна робота з localStorage (для приватних режимів Safari/Chrome)
 function safeGetStorage(key, fallback) {
     try {
         const val = localStorage.getItem(key);
@@ -132,7 +130,7 @@ function ensureSubjectDataStructure() {
 }
 ensureSubjectDataStructure();
 
-// ==================== 3. СИНХРОНІЗАЦІЯ ДАНИХ (ADMIN vs USER) ====================
+// ==================== 3. СИНХРОНІЗАЦІЯ ДАНИХ ====================
 function updateAdminUI() {
     const adminMode = isAdmin();
     const btnAddTask = document.getElementById('btnAddTask');
@@ -319,7 +317,7 @@ function setupAuthEventListeners() {
     }
 }
 
-// ==================== 5. БЕЗПЕЧНИЙ INDEXED DB (ДЛЯ СТАРИХ ТЕЛЕФОНІВ) ====================
+// ==================== 5. INDEXED DB ====================
 const dbPromise = new Promise((resolve) => {
     try {
         if (!window.indexedDB) {
@@ -376,7 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderTasks(); 
     renderSubjectsGrid(); 
     renderSeminarsGrid(); 
-    renderCalendar();
+    renderCalendar(); 
     setupNavigation(); 
     setupEventListeners();
     setupAuthEventListeners();
@@ -405,7 +403,10 @@ function setupNavigation() {
             if (window.innerWidth <= 768 && sidebar) {
                 sidebar.classList.remove('open');
             }
-            if (target === 'home') updateDateAndTime();
+            if (target === 'schedule') {
+                updateDateAndTime();
+                renderSchedule();
+            }
             if (target === 'tasks') renderTasks();
             if (target === 'calendar') renderCalendar();
             if (target === 'seminars-tab') renderSeminarsGrid();
@@ -463,17 +464,32 @@ function getTaskAlertIndicator(subjectName) {
     return hasPending ? `<i class="fas fa-fire task-alert-icon" title="Є невиконані завдання!"></i>` : '';
 }
 
+// ==================== 8. РОЗКЛАД ТА СВАЙП КАРУСЕЛЬ ====================
 function renderSchedule() {
     const container = document.getElementById('scheduleContainer'); 
     if (!container) return;
     container.innerHTML = '';
     const days = ['Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця'];
-    days.forEach(day => {
+    
+    const now = new Date();
+    let currentDayIndex = now.getDay() - 1; 
+    
+    // Якщо субота або неділя — встановлюємо понеділок наступного тижня
+    if (currentDayIndex < 0 || currentDayIndex > 4) {
+        currentDayIndex = 0;
+    }
+
+    const nextInfo = getNextClassInfo();
+
+    days.forEach((day, index) => {
         const classes = scheduleDB[state.weekType].filter(c => c.day === day);
         if (classes.length === 0) return;
-        const dayCard = document.createElement('div');
-        dayCard.className = 'day-card';
-        let html = `<h3 class="day-title">${day}</h3><div>`;
+        
+        const dayCard = document.createElement('div'); 
+        dayCard.className = `day-card ${index === currentDayIndex ? 'current-day' : ''}`;
+        dayCard.id = `day-card-${index}`;
+        
+        let html = `<h3 class="day-title">${day} ${index === currentDayIndex ? '<span style="font-size: 11px; float: right; padding: 2px 8px; background: rgba(67, 97, 238, 0.15); border-radius: 6px;">СЬОГОДНІ</span>' : ''}</h3><div>`;
         classes.forEach(c => {
             if (c.type === 'window') {
                 html += `<div class="class-item window-slot">${c.time} — ВІКНО</div>`;
@@ -482,11 +498,17 @@ function renderSchedule() {
             const dyn = getDynamicClassData(c);
             const badge = dyn.type.toLowerCase().includes('семінар') ? 'badge-seminar' : '';
             const taskAlert = getTaskAlertIndicator(dyn.subject);
+            
+            let liveIndicator = '';
+            if (nextInfo.status === 'ongoing' && nextInfo.class.subject === c.subject && nextInfo.class.time === c.time) {
+                liveIndicator = `<span style="color: #06d6a0; font-size: 10px; font-weight: 700; background: rgba(6, 214, 160, 0.15); padding: 3px 8px; border-radius: 12px; margin-left: 10px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid rgba(6, 214, 160, 0.3);"><span style="display:inline-block; width:6px; height:6px; background:#06d6a0; border-radius:50%; animation: pulse 2s infinite;"></span>ТРИВАЄ ЗАРАЗ</span>`;
+            }
+
             html += `
                 <div class="class-item">
                     <div class="class-time">${dyn.time}</div>
                     <div class="class-info">
-                        <div class="class-subject">${dyn.subject} ${taskAlert}</div>
+                        <div class="class-subject">${dyn.subject} ${taskAlert} ${liveIndicator}</div>
                         <div class="class-details">
                             <span class="badge-type ${badge}">${dyn.type.toUpperCase()}</span>
                             <span><i class="fas fa-user-tie"></i> ${dyn.teacher}</span>
@@ -496,9 +518,20 @@ function renderSchedule() {
                     ${dyn.link ? `<div class="class-actions"><a href="${dyn.link}" target="_blank" class="btn btn-join"><i class="fas fa-video"></i> Приєднатися</a></div>` : ''}
                 </div>`;
         });
-        dayCard.innerHTML = html + `</div>`;
+        dayCard.innerHTML = html + `</div>`; 
         container.appendChild(dayCard);
     });
+
+    // На мобільних пристроях плавно скролимо контейнер до поточного дня
+    if (window.innerWidth <= 768) {
+        setTimeout(() => {
+            const currentCard = document.getElementById(`day-card-${currentDayIndex}`);
+            if (currentCard && container) {
+                const scrollLeft = currentCard.offsetLeft - container.offsetLeft - 15;
+                container.scrollTo({ left: Math.max(0, scrollLeft), behavior: 'smooth' });
+            }
+        }, 150);
+    }
 }
 
 function parseClassTime(timeStr, baseDate = new Date()) {
@@ -563,25 +596,7 @@ function updateDateAndTime() {
     const nextInfo = getNextClassInfo();
     const daysUk = ['Неділя', 'Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця', 'Субота'];
     const todayClasses = scheduleDB[state.weekType].filter(c => c.day === daysUk[now.getDay()] && c.type !== 'window');
-    const todayContainer = document.getElementById('todaySchedule');
     const nextWidget = document.getElementById('nextClassWidget');
-
-    if (todayContainer) {
-        if (todayClasses.length === 0) {
-            todayContainer.innerHTML = '<p class="text-muted" style="padding: 20px; background: var(--card-bg); border-radius: 12px; border: 1px solid var(--border-color); text-align: center;">Сьогодні пар немає. Відпочивай! 🎉</p>';
-        } else {
-            todayContainer.innerHTML = todayClasses.map(c => {
-                const dyn = getDynamicClassData(c);
-                const taskAlert = getTaskAlertIndicator(dyn.subject);
-                const badge = dyn.type.toLowerCase().includes('семінар') ? 'badge-seminar' : '';
-                let liveIndicator = '';
-                if (nextInfo.status === 'ongoing' && nextInfo.class.subject === c.subject && nextInfo.class.time === c.time) {
-                    liveIndicator = `<span style="color: #06d6a0; font-size: 10px; font-weight: 700; background: rgba(6, 214, 160, 0.15); padding: 3px 8px; border-radius: 12px; margin-left: 10px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid rgba(6, 214, 160, 0.3);"><span style="display:inline-block; width:6px; height:6px; background:#06d6a0; border-radius:50%; animation: pulse 2s infinite;"></span>ТРИВАЄ ЗАРАЗ</span>`;
-                }
-                return `<div class="class-item" style="background: var(--card-bg); padding: 15px; border-radius: 12px; border: 1px solid var(--border-color); margin-bottom: 12px;"><div class="class-time" style="font-weight: 600; min-width: 110px; color: var(--text-main);">${dyn.time}</div><div class="class-info" style="flex-grow: 1;"><div class="class-subject" style="font-weight: 700; font-size: 16px; margin-bottom: 6px; display: flex; align-items: center; flex-wrap: wrap; gap: 5px;">${dyn.subject} ${taskAlert} ${liveIndicator}</div><div class="class-details" style="font-size: 13px; color: var(--text-muted); display: flex; gap: 15px; flex-wrap: wrap;"><span class="badge-type ${badge}">${dyn.type.toUpperCase()}</span><span><i class="fas fa-user-tie"></i> ${dyn.teacher}</span><span><i class="fas fa-door-open"></i> ауд. ${dyn.room}</span></div></div>${dyn.link ? `<div class="class-actions"><a href="${dyn.link}" target="_blank" class="btn btn-join"><i class="fas fa-video"></i> Приєднатися</a></div>` : ''}</div>`;
-            }).join('');
-        }
-    }
 
     if (nextWidget) {
         if (nextInfo.status === 'ongoing') {
@@ -600,6 +615,7 @@ function updateDateAndTime() {
     }
 }
 
+// ==================== 9. КАЛЕНДАР ТА ЗАВДАННЯ ====================
 function renderCalendar() {
     const grid = document.getElementById('calendarGrid'); 
     if (!grid) return;
@@ -862,7 +878,6 @@ function renderFileList(containerId, filesArray, sourceObj) {
     const adminMode = isAdmin();
 
     container.innerHTML = filesArray.map(f => {
-        // Убезпечення HTML від збою через лапки у назвах
         const safeName = encodeURIComponent(f.name || 'Файл').replace(/'/g, "%27");
         const safeUrl = encodeURIComponent(f.url || '').replace(/'/g, "%27");
         return `
@@ -1162,8 +1177,6 @@ function renderTasks() {
     const count = state.tasks.filter(t => !t.completed).length;
     const taskBadge = document.getElementById('taskBadge');
     if (taskBadge) taskBadge.textContent = count;
-    const uncompletedCount = document.getElementById('uncompletedCount');
-    if (uncompletedCount) uncompletedCount.textContent = count;
     
     renderSchedule();
     updateDateAndTime();
