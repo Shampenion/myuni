@@ -5,7 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MyUni</title>
     <meta name="apple-mobile-web-app-title" content="MyUni">
-    <link rel="stylesheet" href="style.css?v=3">
+    
+    <!-- ПІДКЛЮЧЕННЯ ЛОГОТИПА ДЛЯ ВКАЛОДОК ТА СМАРТФОНІВ -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="apple-touch-icon" href="favicon.svg">
+    
+    <link rel="stylesheet" href="style.css?v=4">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -17,7 +22,8 @@
         <!-- Ліва панель навігації -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <i class="fas fa-graduation-cap logo-icon"></i>
+                <!-- Вставлено логотип замість іконки -->
+                <img src="favicon.svg" alt="MyUni Logo" style="width: 32px; height: 32px; border-radius: 8px;">
                 <h2>MyUni</h2>
                 <button class="close-sidebar" id="closeSidebar"><i class="fas fa-times"></i></button>
             </div>
@@ -29,7 +35,6 @@
                 <a href="#" class="nav-item" data-target="seminars-tab"><i class="fas fa-chalkboard-teacher"></i> Семінари</a>
                 <a href="#" class="nav-item" data-target="settings"><i class="fas fa-cog"></i> Налаштування</a>
             </nav>
-            <!-- Блок профілю внизу бокового меню -->
             <div class="sidebar-footer" style="border-top: 1px solid var(--border-color); margin-top: auto; padding-top: 15px;">
                 <div id="userDisplay" style="font-size: 13px; margin-bottom: 10px; color: var(--text-muted); word-break: break-all;">Не авторизовано</div>
                 <button class="btn btn-outline btn-sm w-100" id="btnAuthAction"><i class="fas fa-sign-in-alt"></i> Увійти</button>
@@ -38,13 +43,14 @@
 
         <!-- Головний контент -->
         <main class="main-content">
-            <!-- РОЗКЛАД (Стартова сторінка) -->
+            <!-- РОЗКЛАД -->
             <section id="schedule" class="page-section active">
                 <header class="page-header flex-between flex-wrap gap-15">
                     <div>
-                        <h1 class="mb-0" id="greetingName">Привіт, Студенте! 👋</h1>
-                        <div class="date-info" style="margin-top: 5px; color: var(--text-muted); font-size: 14px;">
-                            <span id="currentDate"></span> • <span id="currentWeekTypeBadge" class="badge-week" style="color: var(--primary-color); font-weight: 600;">ВЕРХНІЙ ТИЖДЕНЬ</span>
+                        <!-- Видалено привітання, тепер акцент на даті -->
+                        <div class="date-info" style="color: var(--text-muted);">
+                            <span id="currentDate" style="font-size: 20px; font-weight: 700; color: var(--text-main); display: block; margin-bottom: 4px;"></span> 
+                            <span id="currentWeekTypeBadge" class="badge-week" style="color: var(--primary-color); font-weight: 600; font-size: 14px;">ВЕРХНІЙ ТИЖДЕНЬ</span>
                         </div>
                     </div>
                     <div class="week-toggle card p-0" style="display: flex; padding: 4px !important;">
@@ -53,14 +59,15 @@
                     </div>
                 </header>
 
-                <!-- Віджет найближчої пари -->
                 <div class="card next-class-card mb-20">
                     <h3 class="mb-15"><i class="fas fa-clock" style="color: var(--primary-color);"></i> Найближча пара</h3>
                     <div id="nextClassWidget" class="widget-content"></div>
                 </div>
 
-                <p class="text-muted mb-15"><i class="fas fa-fire" style="color: var(--danger);"></i> — індикатор означає, що до цього предмета є невиконані завдання.</p>
-                <div class="schedule-container" id="scheduleContainer"></div>
+                <div class="schedule-container mb-20" id="scheduleContainer"></div>
+                
+                <!-- Підказка опущена в самий низ -->
+                <p class="text-muted text-center" style="margin-top: 20px;"><i class="fas fa-fire" style="color: var(--danger);"></i> — індикатор означає, що до цього предмета є невиконані завдання.</p>
             </section>
 
             <!-- ЗАВДАННЯ -->
@@ -110,7 +117,7 @@
                 </div>
             </section>
 
-            <!-- СТОРІНКА КОНКРЕТНОГО ДНЯ З КАЛЕНДАРЯ -->
+            <!-- СТОРІНКА ДНЯ -->
             <section id="day-details" class="page-section">
                 <header class="page-header flex-start flex-wrap gap-15">
                     <button class="btn btn-outline btn-sm" id="btnBackToCalendar"><i class="fas fa-arrow-left"></i> Назад</button>
@@ -119,13 +126,12 @@
                 <div class="tasks-grid" id="dayTasksGrid"></div>
             </section>
 
-            <!-- ПРЕДМЕТИ (Список) -->
+            <!-- ПРЕДМЕТИ -->
             <section id="subjects" class="page-section">
                 <header class="page-header"><h1><i class="fas fa-book"></i> Мої предмети</h1></header>
                 <div class="subjects-grid" id="subjectsGrid"></div>
             </section>
 
-            <!-- СТОРІНКА КОНКРЕТНОГО ПРЕДМЕТА -->
             <section id="subject-details" class="page-section">
                 <header class="page-header flex-start flex-wrap gap-15">
                     <button class="btn btn-outline btn-sm" id="btnBackToSubjects"><i class="fas fa-arrow-left"></i> Назад</button>
@@ -203,7 +209,7 @@
             <section id="settings" class="page-section">
                 <header class="page-header"><h1><i class="fas fa-cog"></i> Налаштування</h1></header>
                 <div class="card settings-card" style="max-width: 500px;">
-                    <div class="form-group"><label>Ім'я студента</label><input type="text" id="setStudentName" class="form-control"></div>
+                    <!-- Видалено поле для введення імені -->
                     <div class="form-group"><label>Група іноземної мови</label><select id="setLangGroup" class="form-control"><option value="1">1 група (Ступенко)</option><option value="2">2 група (Юзефович)</option></select></div>
                     <div class="form-group flex-between" style="flex-direction: row !important;"><label class="mb-0">Темна тема</label><label class="switch"><input type="checkbox" id="themeToggle"><span class="slider round"></span></label></div>
                     <button class="btn btn-primary w-100 mt-2" id="btnSaveSettings">Зберегти налаштування</button>
@@ -212,7 +218,7 @@
         </main>
     </div>
 
-    <!-- МОДАЛЬНЕ ВІКНО АВТОРИЗАЦІЇ / РЕЄСТРАЦІЇ -->
+    <!-- МОДАЛКИ (Без змін, залишені для коректної роботи) -->
     <div class="modal" id="authModal">
         <div class="modal-content" style="max-width: 380px;">
             <span class="close-modal" id="closeAuthModal">&times;</span>
@@ -233,14 +239,12 @@
         </div>
     </div>
 
-    <!-- Модальне вікно СТВОРЕННЯ / РЕДАГУВАННЯ завдання -->
     <div class="modal" id="taskModal">
         <div class="modal-content">
             <span class="close-modal" id="closeTaskModal">&times;</span>
             <h2 id="taskModalTitle" class="mb-15">Нове завдання</h2>
             <form id="taskForm">
                 <input type="hidden" id="editTaskId" value="">
-                
                 <div class="form-group flex-between gap-15" style="flex-direction: row !important; flex-wrap: wrap;">
                     <div style="flex: 1; min-width: 140px;">
                         <label>Предмет</label>
@@ -256,47 +260,24 @@
                         </select>
                     </div>
                 </div>
-
-                <div class="form-group">
-                    <label>Назва завдання</label>
-                    <input type="text" id="taskTitle" class="form-control" required>
-                </div>
-                <div class="form-group">
-                    <label>Опис</label>
-                    <textarea id="taskDesc" class="form-control" rows="4"></textarea>
-                </div>
+                <div class="form-group"><label>Назва завдання</label><input type="text" id="taskTitle" class="form-control" required></div>
+                <div class="form-group"><label>Опис</label><textarea id="taskDesc" class="form-control" rows="4"></textarea></div>
                 <div class="form-group flex-between gap-15" style="flex-direction: row !important; flex-wrap: wrap;">
-                    <div style="flex: 1; min-width: 140px;">
-                        <label>Дедлайн</label>
-                        <input type="date" id="taskDeadline" class="form-control" required>
-                    </div>
-                    <div style="flex: 1; min-width: 140px;">
-                        <label>Статус</label>
-                        <select id="taskStatus" class="form-control">
-                            <option value="pending">Не виконано</option>
-                            <option value="completed">Виконано</option>
-                        </select>
-                    </div>
+                    <div style="flex: 1; min-width: 140px;"><label>Дедлайн</label><input type="date" id="taskDeadline" class="form-control" required></div>
+                    <div style="flex: 1; min-width: 140px;"><label>Статус</label><select id="taskStatus" class="form-control"><option value="pending">Не виконано</option><option value="completed">Виконано</option></select></div>
                 </div>
                 <button type="submit" class="btn btn-primary w-100"><i class="fas fa-save"></i> Зберегти</button>
             </form>
         </div>
     </div>
 
-    <!-- Модальне вікно ДЕТАЛЬНОГО ПЕРЕГЛЯДУ завдання -->
     <div class="modal" id="taskDetailsModal">
         <div class="modal-content task-details-modal-content">
             <span class="close-modal" id="closeTaskDetailsModal">&times;</span>
-            
             <div class="detail-header-badges" id="detailTaskBadges"></div>
             <h2 id="detailTaskTitle" class="detail-task-title">Назва завдання</h2>
             <div class="detail-task-deadline" id="detailTaskDeadline"></div>
-
-            <div class="detail-desc-box">
-                <div class="detail-section-label">Опис завдання:</div>
-                <div id="detailTaskDesc" class="detail-task-desc"></div>
-            </div>
-
+            <div class="detail-desc-box"><div class="detail-section-label">Опис завдання:</div><div id="detailTaskDesc" class="detail-task-desc"></div></div>
             <div class="materials-section">
                 <div class="flex-between mb-15">
                     <span class="detail-section-label" style="margin-bottom: 0;"><i class="fas fa-paperclip"></i> Матеріали до завдання:</span>
@@ -307,7 +288,6 @@
                 </div>
                 <div class="files-list" id="detailTaskFilesList"></div>
             </div>
-
             <div class="detail-modal-footer">
                 <button class="btn btn-primary" id="detailBtnToggleStatus"><i class="fas fa-check"></i> Виконати</button>
                 <div class="flex-end gap-10">
@@ -318,7 +298,6 @@
         </div>
     </div>
     
-    <!-- Перегляд файлів та підтвердження -->
     <div class="modal" id="viewerModal">
         <div class="modal-content viewer-modal-content">
             <div class="viewer-header flex-between mb-10">
@@ -346,12 +325,9 @@
     
     <input type="file" id="globalFileInput" hidden>
 
-    <!-- ПІДКЛЮЧЕННЯ FIREBASE SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-
-    <!-- Головний скрипт -->
     <script src="app.js"></script>
 </body>
 </html>
