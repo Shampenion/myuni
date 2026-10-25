@@ -107,7 +107,8 @@ let state = {
     tasks: safeGetStorage('tasks', []),
     completedTaskIds: safeGetStorage('myCompletedTaskIds', []),
     subjectData: safeGetStorage('subjectData', {}),
-    settings: safeGetStorage('settings', { name: 'Студент', langGroup: '1', darkTheme: false }),
+    // Видалено налаштування name
+    settings: safeGetStorage('settings', { langGroup: '1', darkTheme: false }),
     currentViewParams: null, 
     uploadTarget: null,
     taskFilter: 'pending', taskSearch: '', taskSort: 'deadline',
@@ -474,7 +475,6 @@ function renderSchedule() {
     const now = new Date();
     let currentDayIndex = now.getDay() - 1; 
     
-    // Якщо субота або неділя — встановлюємо понеділок наступного тижня
     if (currentDayIndex < 0 || currentDayIndex > 4) {
         currentDayIndex = 0;
     }
@@ -522,7 +522,6 @@ function renderSchedule() {
         container.appendChild(dayCard);
     });
 
-    // На мобільних пристроях плавно скролимо контейнер до поточного дня
     if (window.innerWidth <= 768) {
         setTimeout(() => {
             const currentCard = document.getElementById(`day-card-${currentDayIndex}`);
@@ -587,9 +586,9 @@ function getTimeRemainingStr(targetDate) {
 function updateDateAndTime() {
     const now = new Date();
     const dateEl = document.getElementById('currentDate');
+    // Видалено логіку для привітання (greetingName)
     if (dateEl) dateEl.textContent = now.toLocaleDateString('uk-UA', { weekday: 'long', month: 'long', day: 'numeric' });
-    const greetEl = document.getElementById('greetingName');
-    if (greetEl) greetEl.textContent = `Привіт, ${state.settings.name}! 👋`;
+    
     const weekBadge = document.getElementById('currentWeekTypeBadge');
     if (weekBadge) weekBadge.textContent = state.weekType === 'upper' ? 'ВЕРХНІЙ ТИЖДЕНЬ' : 'НИЖНІЙ ТИЖДЕНЬ';
     
@@ -1177,6 +1176,8 @@ function renderTasks() {
     const count = state.tasks.filter(t => !t.completed).length;
     const taskBadge = document.getElementById('taskBadge');
     if (taskBadge) taskBadge.textContent = count;
+    const uncompletedCount = document.getElementById('uncompletedCount');
+    if (uncompletedCount) uncompletedCount.textContent = count;
     
     renderSchedule();
     updateDateAndTime();
@@ -1392,7 +1393,6 @@ function setupEventListeners() {
     const btnSaveSet = document.getElementById('btnSaveSettings');
     if (btnSaveSet) {
         btnSaveSet.onclick = () => {
-            state.settings.name = document.getElementById('setStudentName').value || 'Студент';
             state.settings.langGroup = document.getElementById('setLangGroup').value;
             state.settings.darkTheme = document.getElementById('themeToggle').checked;
             if (state.settings.darkTheme) document.documentElement.setAttribute('data-theme', 'dark');
@@ -1415,8 +1415,6 @@ function switchWeek(type, btn) {
 }
 
 function initSettings() {
-    const setStudentName = document.getElementById('setStudentName');
-    if (setStudentName) setStudentName.value = state.settings.name || '';
     const setLangGroup = document.getElementById('setLangGroup');
     if (setLangGroup) setLangGroup.value = state.settings.langGroup || '1';
     const themeToggle = document.getElementById('themeToggle');
