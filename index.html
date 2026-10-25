@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Мій Університет</title>
-    <link rel="stylesheet" href="style.css">
+    <title>MyUni</title>
+    <meta name="apple-mobile-web-app-title" content="MyUni">
+    <link rel="stylesheet" href="style.css?v=3">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -21,8 +22,7 @@
                 <button class="close-sidebar" id="closeSidebar"><i class="fas fa-times"></i></button>
             </div>
             <nav class="nav-menu">
-                <a href="#" class="nav-item active" data-target="home"><i class="fas fa-home"></i> Головна</a>
-                <a href="#" class="nav-item" data-target="schedule"><i class="fas fa-list-alt"></i> Розклад</a>
+                <a href="#" class="nav-item active" data-target="schedule"><i class="fas fa-list-alt"></i> Розклад</a>
                 <a href="#" class="nav-item" data-target="tasks"><i class="fas fa-tasks"></i> Завдання <span class="badge" id="taskBadge">0</span></a>
                 <a href="#" class="nav-item" data-target="calendar"><i class="fas fa-calendar-alt"></i> Календар</a>
                 <a href="#" class="nav-item" data-target="subjects"><i class="fas fa-book"></i> Предмети</a>
@@ -38,40 +38,27 @@
 
         <!-- Головний контент -->
         <main class="main-content">
-            <!-- ГОЛОВНА СТОРІНКА -->
-            <section id="home" class="page-section active">
-                <header class="page-header">
-                    <h1 id="greetingName">Привіт, Студенте!</h1>
-                    <div class="date-info" style="margin-top: 5px; color: var(--text-muted); font-size: 14px;">
-                        <span id="currentDate"></span> • <span id="currentWeekTypeBadge" class="badge-week" style="color: var(--primary-color); font-weight: 600;">Верхній тиждень</span>
-                    </div>
-                </header>
-                <div class="dashboard-grid">
-                    <div class="card next-class-card">
-                        <h3 class="mb-15"><i class="fas fa-clock" style="color: var(--primary-color);"></i> Найближча пара</h3>
-                        <div id="nextClassWidget" class="widget-content"></div>
-                    </div>
-                    <div class="card stats-card">
-                        <h3 class="mb-15"><i class="fas fa-chart-pie" style="color: var(--primary-color);"></i> Статистика завдань</h3>
-                        <div class="stat-item" style="font-size: 16px; margin-bottom: 12px;">
-                            <span>Не виконано:</span> <strong id="uncompletedCount" class="text-danger">0</strong>
-                        </div>
-                        <button class="btn btn-outline w-100 mt-2" onclick="document.querySelector('[data-target=\'tasks\']').click()">Перейти до завдань</button>
-                    </div>
-                </div>
-                <h3 class="section-title mb-15">Розклад на сьогодні</h3>
-                <div id="todaySchedule" class="schedule-list"></div>
-            </section>
-
-            <!-- РОЗКЛАД -->
-            <section id="schedule" class="page-section">
+            <!-- РОЗКЛАД (Стартова сторінка) -->
+            <section id="schedule" class="page-section active">
                 <header class="page-header flex-between flex-wrap gap-15">
-                    <h1 class="mb-0"><i class="fas fa-list-alt"></i> Розклад</h1>
+                    <div>
+                        <h1 class="mb-0" id="greetingName">Привіт, Студенте! 👋</h1>
+                        <div class="date-info" style="margin-top: 5px; color: var(--text-muted); font-size: 14px;">
+                            <span id="currentDate"></span> • <span id="currentWeekTypeBadge" class="badge-week" style="color: var(--primary-color); font-weight: 600;">ВЕРХНІЙ ТИЖДЕНЬ</span>
+                        </div>
+                    </div>
                     <div class="week-toggle card p-0" style="display: flex; padding: 4px !important;">
                         <button class="btn btn-toggle active" id="btnUpperWeek">ВЕРХНІЙ ТИЖДЕНЬ</button>
                         <button class="btn btn-toggle" id="btnLowerWeek">НИЖНІЙ ТИЖДЕНЬ</button>
                     </div>
                 </header>
+
+                <!-- Віджет найближчої пари -->
+                <div class="card next-class-card mb-20">
+                    <h3 class="mb-15"><i class="fas fa-clock" style="color: var(--primary-color);"></i> Найближча пара</h3>
+                    <div id="nextClassWidget" class="widget-content"></div>
+                </div>
+
                 <p class="text-muted mb-15"><i class="fas fa-fire" style="color: var(--danger);"></i> — індикатор означає, що до цього предмета є невиконані завдання.</p>
                 <div class="schedule-container" id="scheduleContainer"></div>
             </section>
