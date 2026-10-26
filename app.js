@@ -76,7 +76,7 @@ let state = {
     completedTaskIds: JSON.parse(localStorage.getItem('myCompletedTaskIds')) || [],
     subjectData: JSON.parse(localStorage.getItem('subjectData')) || {},
     settings: JSON.parse(localStorage.getItem('settings')) || { name: 'Студент', langGroup: '1', darkTheme: false },
-    currentViewParams: null, 
+    currentViewParams: null,
     uploadTarget: null,
     taskFilter: 'pending', taskSearch: '', taskSort: 'deadline',
     calendarDate: new Date(),
@@ -90,7 +90,7 @@ allSubjectsList.forEach(sub => {
 // ==================== 3. СИНХРОНІЗАЦІЯ ДАНИХ (ADMIN vs USER) ====================
 function updateAdminUI() {
     const adminMode = isAdmin();
-    
+
     const btnAddTask = document.getElementById('btnAddTask');
     if (btnAddTask) btnAddTask.style.display = adminMode ? 'inline-flex' : 'none';
 
@@ -110,7 +110,7 @@ function updateAdminUI() {
     if (editBtn) editBtn.style.display = adminMode ? 'inline-block' : 'none';
     if (deleteBtn) deleteBtn.style.display = adminMode ? 'inline-block' : 'none';
     if (addFileBtn) addFileBtn.style.display = adminMode ? 'inline-block' : 'none';
-    
+
     const additionalInfoArea = document.getElementById('additionalInfoText');
     if (additionalInfoArea) additionalInfoArea.readOnly = !adminMode;
 }
@@ -132,12 +132,10 @@ function saveData() {
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
 
-        // Записуємо завдання у хмару, тільки якщо вони реально існують
         if (Array.isArray(state.tasks) && state.tasks.length > 0) {
             updatePayload.tasks = state.tasks;
         }
 
-        // Записуємо предмети у хмару, тільки якщо масив не порожній
         if (state.subjectData && Object.keys(state.subjectData).length > 0) {
             updatePayload.subjectData = state.subjectData;
         }
@@ -164,12 +162,10 @@ async function loadGlobalContent() {
         const doc = await docRef.get();
         if (doc.exists) {
             const data = doc.data();
-            // Беремо завдання з хмари тільки якщо вони там є
             if (data.tasks && data.tasks.length > 0) {
                 state.tasks = data.tasks;
                 localStorage.setItem('tasks', JSON.stringify(state.tasks));
             }
-            // Беремо предмети з хмари тільки якщо вони там є
             if (data.subjectData && Object.keys(data.subjectData).length > 0) {
                 state.subjectData = { ...state.subjectData, ...data.subjectData };
                 localStorage.setItem('subjectData', JSON.stringify(state.subjectData));
@@ -223,8 +219,8 @@ auth.onAuthStateChanged(user => {
     if (user) {
         const isAdm = isAdmin();
         if (userDisplay) {
-            userDisplay.innerHTML = isAdm 
-                ? `<strong>👑 Адміністратор</strong><br><small>${user.email}</small>` 
+            userDisplay.innerHTML = isAdm
+                ? `<strong>👑 Адміністратор</strong><br><small>${user.email}</small>`
                 : `<strong>Студент</strong><br><small>${user.email}</small>`;
         }
         if (btnAuthAction) btnAuthAction.innerHTML = '<i class="fas fa-sign-out-alt"></i> Вийти';
@@ -233,7 +229,7 @@ auth.onAuthStateChanged(user => {
         if (userDisplay) userDisplay.innerText = 'Гість (лише перегляд)';
         if (btnAuthAction) btnAuthAction.innerHTML = '<i class="fas fa-sign-in-alt"></i> Увійти';
     }
-    
+
     updateAdminUI();
     renderTasks();
 });
@@ -309,19 +305,19 @@ async function deleteFileFromDB(id) { const dbInst = await dbPromise; dbInst.tra
 
 // ==================== 6. ІНІЦІАЛІЗАЦІЯ ====================
 document.addEventListener('DOMContentLoaded', () => {
-    initSettings(); 
-    updateDateAndTime(); 
-    renderSchedule(); 
-    renderTasks(); 
-    renderSubjectsGrid(); 
-    renderSeminarsGrid(); 
+    initSettings();
+    updateDateAndTime();
+    renderSchedule();
+    renderTasks();
+    renderSubjectsGrid();
+    renderSeminarsGrid();
     renderCalendar();
-    setupNavigation(); 
+    setupNavigation();
     setupEventListeners();
     setupAuthEventListeners();
-    loadGlobalContent(); 
-    
-    setInterval(updateDateAndTime, 60000); 
+    loadGlobalContent();
+
+    setInterval(updateDateAndTime, 60000);
 });
 
 // ==================== 7. НАВІГАЦІЯ ====================
@@ -337,7 +333,7 @@ function setupNavigation() {
             const target = item.getAttribute('data-target');
             const targetEl = document.getElementById(target);
             if(targetEl) targetEl.classList.add('active');
-            
+
             if(window.innerWidth <= 768) {
                 const sb = document.getElementById('sidebar');
                 if(sb) sb.classList.remove('open');
@@ -373,6 +369,77 @@ function getTaskTypeBadgeName(type) {
     return 'badge-type-task';
 }
 
+// ==================== 8.1 ДЕДЛАЙНИ ТА КАРТКИ ЗАВДАНЬ ====================
+const UK_MONTHS_SHORT = ['січ', 'лют', 'бер', 'квіт', 'трав', 'черв', 'лип', 'серп', 'вер', 'жовт', 'лист', 'груд'];
+
+// "2026-10-28" -> локальна дата (без зсуву часового поясу)
+function parseDateStr(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, d);
+}
+
+// Скільки днів до дедлайну: 0 = сьогодні, від'ємне = прострочено
+function getDaysUntil(dateStr) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.round((parseDateStr(dateStr) - today) / 86400000);
+}
+
+function formatDeadline(dateStr) {
+    const diff = getDaysUntil(dateStr);
+    if (diff === 0) return 'сьогодні';
+    if (diff === 1) return 'завтра';
+    if (diff >= 2 && diff <= 6) return `через ${diff} ${diff >= 5 ? 'днів' : 'дні'}`;
+    const d = parseDateStr(dateStr);
+    return `${d.getDate()} ${UK_MONTHS_SHORT[d.getMonth()]}`;
+}
+
+function getDeadlineBadge(t) {
+    if (t.completed) return { cls: 'btn-join', text: 'Виконано' };
+    const diff = getDaysUntil(t.deadline);
+    if (diff < 0) return { cls: 'badge-danger', text: 'Прострочено' };
+    if (diff <= 2) return { cls: 'badge-soon', text: formatDeadline(t.deadline) };
+    return { cls: 'badge-neutral', text: formatDeadline(t.deadline) };
+}
+
+// Єдина розмітка картки завдання (використовується скрізь)
+function buildTaskCard(t) {
+    const isOverdue = !t.completed && getDaysUntil(t.deadline) < 0;
+    const typeClass = getTaskTypeClass(t.type || 'Завдання');
+    const typeBadgeClass = getTaskTypeBadgeName(t.type || 'Завдання');
+    const dl = getDeadlineBadge(t);
+    const fileCount = t.materials ? t.materials.length : 0;
+
+    return `
+        <div id="task-card-${t.id}" class="task-card ${t.completed ? 'completed' : ''} ${isOverdue ? 'overdue' : ''} ${typeClass}" onclick="openTaskDetailsModal(${t.id})">
+            <div class="task-card-top">
+                <div class="task-header">
+                    <span class="task-subject" title="${t.subject}">
+                        <span class="task-subject-name">${t.subject}</span>
+                        <span class="type-badge ${typeBadgeClass}">${t.type || 'Завдання'}</span>
+                    </span>
+                    <span class="badge ${dl.cls}">${dl.text}</span>
+                </div>
+                <h4 class="task-card-title" title="${t.title}">${t.title}</h4>
+                <div class="task-desc-preview">${t.desc || 'Без опису'}</div>
+            </div>
+            <div class="task-card-bottom">
+                <div class="task-meta-row">
+                    <span class="task-files-pill">${fileCount > 0 ? `<i class="fas fa-paperclip"></i> Файлів: ${fileCount}` : ''}</span>
+                    <button class="btn-details" onclick="event.stopPropagation(); openTaskDetailsModal(${t.id})">Детальніше ↗</button>
+                </div>
+                <div class="task-card-footer" onclick="event.stopPropagation()">
+                    <button class="btn ${t.completed ? 'btn-outline' : 'btn-primary'} btn-sm" onclick="toggleTaskStatus(${t.id})">${t.completed ? 'Відновити' : '✓ Виконати'}</button>
+                    ${isAdmin() ? `
+                    <div class="flex-end gap-10">
+                        <button class="icon-btn" onclick="event.stopPropagation(); openEditTaskModal(${t.id})" title="Редагувати"><i class="fas fa-pen"></i></button>
+                        <button class="icon-btn delete" onclick="event.stopPropagation(); confirmDelete(() => processDeleteTask(${t.id}))" title="Видалити"><i class="fas fa-trash"></i></button>
+                    </div>` : ''}
+                </div>
+            </div>
+        </div>`;
+}
+
 // ==================== 9. РОЗКЛАД ТА ІНДИКАТОРИ ====================
 function getDynamicClassData(c) {
     let d = { ...c };
@@ -390,14 +457,14 @@ function getTaskAlertIndicator(subjectName) {
 }
 
 function renderSchedule() {
-    const container = document.getElementById('scheduleContainer'); 
+    const container = document.getElementById('scheduleContainer');
     if(!container) return;
     container.innerHTML = '';
     const days = ['Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця'];
-    
+
     const now = new Date();
-    let currentDayIndex = now.getDay() - 1; 
-    
+    let currentDayIndex = now.getDay() - 1;
+
     if (currentDayIndex < 0 || currentDayIndex > 4) {
         currentDayIndex = 0;
     }
@@ -407,11 +474,11 @@ function renderSchedule() {
     days.forEach((day, index) => {
         const classes = scheduleDB[state.weekType].filter(c => c.day === day);
         if (classes.length === 0) return;
-        
-        const dayCard = document.createElement('div'); 
+
+        const dayCard = document.createElement('div');
         dayCard.className = `day-card ${index === currentDayIndex ? 'current-day' : ''}`;
         dayCard.id = `day-card-${index}`;
-        
+
         let html = `<h3 class="day-title">${day} ${index === currentDayIndex ? '<span style="font-size: 11px; float: right; padding: 2px 8px; background: rgba(67, 97, 238, 0.15); border-radius: 6px;">СЬОГОДНІ</span>' : ''}</h3><div>`;
         classes.forEach(c => {
             if (c.type === 'window') {
@@ -421,7 +488,7 @@ function renderSchedule() {
             const dyn = getDynamicClassData(c);
             const badge = dyn.type.toLowerCase().includes('семінар') ? 'badge-seminar' : '';
             const taskAlert = getTaskAlertIndicator(dyn.subject);
-            
+
             let liveIndicator = '';
             if (nextInfo.status === 'ongoing' && nextInfo.class.subject === c.subject && nextInfo.class.time === c.time) {
                 liveIndicator = `<span style="color: #06d6a0; font-size: 10px; font-weight: 700; background: rgba(6, 214, 160, 0.15); padding: 3px 8px; border-radius: 12px; margin-left: 10px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid rgba(6, 214, 160, 0.3);"><span style="display:inline-block; width:6px; height:6px; background:#06d6a0; border-radius:50%; animation: pulse 2s infinite;"></span>ТРИВАЄ ЗАРАЗ</span>`;
@@ -441,7 +508,7 @@ function renderSchedule() {
                     ${dyn.link ? `<div class="class-actions"><a href="${dyn.link}" target="_blank" class="btn btn-join"><i class="fas fa-video"></i> Приєднатися</a></div>` : ''}
                 </div>`;
         });
-        dayCard.innerHTML = html + `</div>`; 
+        dayCard.innerHTML = html + `</div>`;
         container.appendChild(dayCard);
     });
 
@@ -497,10 +564,10 @@ function updateDateAndTime() {
     const now = new Date();
     const dateEl = document.getElementById('currentDate');
     if (dateEl) dateEl.textContent = now.toLocaleDateString('uk-UA', { weekday: 'long', month: 'long', day: 'numeric' });
-    
+
     const weekBadge = document.getElementById('currentWeekTypeBadge');
     if (weekBadge) weekBadge.textContent = state.weekType === 'upper' ? 'ВЕРХНІЙ ТИЖДЕНЬ' : 'НИЖНІЙ ТИЖДЕНЬ';
-    
+
     const nextInfo = getNextClassInfo();
     const daysUk = ['Неділя', 'Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця', 'Субота'];
     const todayClasses = scheduleDB[state.weekType].filter(c => c.day === daysUk[now.getDay()] && c.type !== 'window');
@@ -524,33 +591,50 @@ function updateDateAndTime() {
 }
 
 // ==================== 10. КАЛЕНДАР ====================
+function isMobileView() {
+    return window.innerWidth <= 768;
+}
+
 function renderCalendar() {
-    const grid = document.getElementById('calendarGrid'); 
+    const grid = document.getElementById('calendarGrid');
     if(!grid) return;
     grid.innerHTML = '';
     const year = state.calendarDate.getFullYear(); const month = state.calendarDate.getMonth();
     const monthNames = ['Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень', 'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень'];
     const calMY = document.getElementById('calendarMonthYear');
     if(calMY) calMY.textContent = `${monthNames[month]} ${year}`;
-    
-    const firstDay = new Date(year, month, 1).getDay(); 
+
+    const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    let startDay = firstDay === 0 ? 6 : firstDay - 1; 
+    let startDay = firstDay === 0 ? 6 : firstDay - 1;
 
     for (let i = 0; i < startDay; i++) grid.innerHTML += `<div class="cal-day empty"></div>`;
     const today = new Date(); today.setHours(0,0,0,0);
+    const mobile = isMobileView();
 
     for (let day = 1; day <= daysInMonth; day++) {
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         const isToday = today.getTime() === new Date(year, month, day).getTime();
         const dayTasks = state.tasks.filter(t => t.deadline === dateStr);
-        
+
         let tasksHtml = '';
-        dayTasks.forEach(t => {
-            const typeClass = getTaskTypeClass(t.type || 'Завдання');
-            let badgeClass = t.completed ? 'done' : (new Date(t.deadline) < today ? 'over' : '');
-            tasksHtml += `<div class="cal-task-label ${typeClass} ${badgeClass}" title="${t.title}">${t.title}</div>`;
-        });
+        if (mobile) {
+            // На телефоні: лише крапки-індикатори, щоб не було нечитабельних плашок
+            if (dayTasks.length > 0) {
+                const hasOpen = dayTasks.some(t => !t.completed);
+                const hasOverdue = dayTasks.some(t => !t.completed && getDaysUntil(t.deadline) < 0);
+                const dotCls = hasOverdue ? 'over' : (hasOpen ? '' : 'done');
+                tasksHtml = `<div class="cal-dots"><span class="cal-dot ${dotCls}"></span>${dayTasks.length > 1 ? `<span class="cal-count">${dayTasks.length}</span>` : ''}</div>`;
+            }
+        } else {
+            dayTasks.forEach(t => {
+                const typeClass = getTaskTypeClass(t.type || 'Завдання');
+                const doneClass = t.completed ? 'done' : '';
+                const overdueClass = !t.completed && getDaysUntil(t.deadline) < 0 ? 'over' : '';
+                const mark = t.completed ? '✓ ' : '';
+                tasksHtml += `<div class="cal-task-label ${typeClass} ${doneClass} ${overdueClass}" title="${t.title}">${mark}${t.title}</div>`;
+            });
+        }
 
         const dayCell = document.createElement('div');
         dayCell.className = `cal-day ${isToday ? 'today' : ''}`;
@@ -565,61 +649,39 @@ if(btnPrevMonth) btnPrevMonth.onclick = () => { state.calendarDate.setMonth(stat
 const btnNextMonth = document.getElementById('btnNextMonth');
 if(btnNextMonth) btnNextMonth.onclick = () => { state.calendarDate.setMonth(state.calendarDate.getMonth() + 1); renderCalendar(); };
 
+// Перемальовуємо календар при зміні розміру (мобільний/десктоп)
+let lastIsMobile = isMobileView();
+window.addEventListener('resize', () => {
+    const nowMobile = isMobileView();
+    if (nowMobile !== lastIsMobile) {
+        lastIsMobile = nowMobile;
+        renderCalendar();
+    }
+});
+
 function openDayDetailsView(dateStr) {
     document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
     const daySection = document.getElementById('day-details');
     if(daySection) daySection.classList.add('active');
-    
-    const [y, m, d] = dateStr.split('-'); const dateObj = new Date(y, m - 1, d);
+
     const dayTitle = document.getElementById('dayDetailTitle');
-    if(dayTitle) dayTitle.textContent = dateObj.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' });
+    if(dayTitle) dayTitle.textContent = parseDateStr(dateStr).toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' });
+
     const container = document.getElementById('dayTasksGrid');
+    if (!container) return;
     const dayTasks = state.tasks.filter(t => t.deadline === dateStr);
 
-    if (dayTasks.length === 0) { 
-        if(container) container.innerHTML = '<p class="text-muted" style="grid-column: 1/-1;">На цей день завдань немає.</p>'; 
-        return; 
-    }
-
-    const now = new Date(); now.setHours(0,0,0,0);
-    if(container) {
-        container.innerHTML = dayTasks.map(t => {
-            const isOverdue = !t.completed && new Date(t.deadline) < now;
-            const typeClass = getTaskTypeClass(t.type || 'Завдання');
-            const typeBadgeClass = getTaskTypeBadgeName(t.type || 'Завдання');
-            const badgeClass = t.completed ? 'btn-join' : (isOverdue ? 'badge-danger' : '');
-            const badgeText = t.completed ? 'Виконано' : (isOverdue ? 'Прострочено' : 'Дедлайн: ' + t.deadline);
-            const fileCount = t.materials ? t.materials.length : 0;
-            
-            return `<div class="task-card ${t.completed ? 'completed' : ''} ${isOverdue ? 'overdue' : ''} ${typeClass}" onclick="openTaskDetailsModal(${t.id})">
-                <div>
-                    <div class="task-header">
-                        <span class="task-subject"><span class="task-subject-name">${t.subject}</span> <span class="type-badge ${typeBadgeClass}">${t.type || 'Завдання'}</span></span>
-                        <span class="badge ${badgeClass}">${badgeText}</span>
-                    </div>
-                    <h4 class="task-card-title">${t.title}</h4>
-                    <div class="task-desc-preview">${t.desc || 'Без опису'}</div>
-                </div>
-                <div>
-                    <div class="task-meta-row">
-                        <span class="task-files-pill">${fileCount > 0 ? `<i class="fas fa-paperclip"></i> Файлів: ${fileCount}` : ''}</span>
-                        <button class="btn-details" onclick="event.stopPropagation(); openTaskDetailsModal(${t.id})">Детальніше ↗</button>
-                    </div>
-                    <div class="task-card-footer" onclick="event.stopPropagation()">
-                        <span style="font-size: 12px; color: var(--primary-color); font-weight: 600; cursor: pointer;" onclick="jumpToTask(${t.id})">До списку завдань →</span>
-                    </div>
-                </div>
-            </div>`;
-        }).join('');
-    }
+    container.innerHTML = dayTasks.length
+        ? dayTasks.map(buildTaskCard).join('')
+        : '<p class="text-muted" style="grid-column: 1/-1;">На цей день завдань немає.</p>';
 }
 
 const btnBackToCalendar = document.getElementById('btnBackToCalendar');
 if(btnBackToCalendar) {
-    btnBackToCalendar.onclick = () => { 
-        document.getElementById('day-details').classList.remove('active'); 
-        document.getElementById('calendar').classList.add('active'); 
-        renderCalendar(); 
+    btnBackToCalendar.onclick = () => {
+        document.getElementById('day-details').classList.remove('active');
+        document.getElementById('calendar').classList.add('active');
+        renderCalendar();
     };
 }
 
@@ -630,7 +692,7 @@ function jumpToTask(taskId) {
     if(navTasks) navTasks.classList.add('active');
     const tasksSec = document.getElementById('tasks');
     if(tasksSec) tasksSec.classList.add('active');
-    
+
     state.taskFilter = 'all'; state.taskSearch = '';
     const searchInput = document.getElementById('taskSearchInput');
     if(searchInput) searchInput.value = '';
@@ -651,7 +713,7 @@ function jumpToTask(taskId) {
 
 // ==================== 11. ПРЕДМЕТИ ТА СЕМІНАРИ ====================
 function renderSubjectsGrid() {
-    const grid = document.getElementById('subjectsGrid'); 
+    const grid = document.getElementById('subjectsGrid');
     if(!grid) return;
     grid.innerHTML = '';
     allSubjectsList.forEach(sub => {
@@ -665,7 +727,7 @@ function renderSubjectsGrid() {
 }
 
 function renderSeminarsGrid() {
-    const grid = document.getElementById('seminarsGrid'); 
+    const grid = document.getElementById('seminarsGrid');
     if(!grid) return;
     grid.innerHTML = '';
     allSubjectsList.forEach(sub => {
@@ -712,49 +774,13 @@ function renderSeminarTasks(subjectName) {
     if(!container) return;
     const seminarTasks = state.tasks.filter(t => t.subject === subjectName && t.type === 'Семінар');
     const sc = document.getElementById('seminarTasksContainer');
-    
+
     if (seminarTasks.length === 0) {
         if(sc) sc.style.display = 'none';
         return;
     }
-    
     if(sc) sc.style.display = 'block';
-    const now = new Date(); now.setHours(0,0,0,0);
-    const adminMode = isAdmin();
-
-    container.innerHTML = seminarTasks.map(t => {
-        const isOverdue = !t.completed && new Date(t.deadline) < now;
-        const typeClass = getTaskTypeClass(t.type);
-        const typeBadgeClass = getTaskTypeBadgeName(t.type);
-        const badgeClass = t.completed ? 'btn-join' : (isOverdue ? 'badge-danger' : '');
-        const badgeText = t.completed ? 'Виконано' : 'До: ' + t.deadline;
-        const fileCount = t.materials ? t.materials.length : 0;
-        
-        return `<div class="task-card ${t.completed ? 'completed' : ''} ${isOverdue ? 'overdue' : ''} ${typeClass}" onclick="openTaskDetailsModal(${t.id})">
-                <div>
-                    <div class="task-header">
-                        <span class="task-subject"><span class="task-subject-name">${t.subject}</span> <span class="type-badge ${typeBadgeClass}">${t.type}</span></span>
-                        <span class="badge ${badgeClass}">${badgeText}</span>
-                    </div>
-                    <h4 class="task-card-title">${t.title}</h4>
-                    <div class="task-desc-preview">${t.desc || 'Без опису'}</div>
-                </div>
-                <div>
-                    <div class="task-meta-row">
-                        <span class="task-files-pill">${fileCount > 0 ? `<i class="fas fa-paperclip"></i> Файлів: ${fileCount}` : ''}</span>
-                        <button class="btn-details" onclick="event.stopPropagation(); openTaskDetailsModal(${t.id})">Детальніше ↗</button>
-                    </div>
-                    <div class="task-card-footer" onclick="event.stopPropagation()">
-                        <button class="btn ${t.completed ? 'btn-outline' : 'btn-primary'} btn-sm" onclick="toggleTaskStatus(${t.id})">${t.completed ? 'Відновити' : '✓ Виконати'}</button>
-                        ${adminMode ? `
-                        <div class="flex-end gap-10">
-                            <button class="icon-btn" onclick="openEditTaskModal(${t.id})" title="Редагувати"><i class="fas fa-pen"></i></button>
-                            <button class="icon-btn delete" onclick="confirmDelete(() => processDeleteTask(${t.id}))" title="Видалити"><i class="fas fa-trash"></i></button>
-                        </div>` : ''}
-                    </div>
-                </div>
-            </div>`;
-    }).join('');
+    container.innerHTML = seminarTasks.map(buildTaskCard).join('');
 }
 
 // ==================== 12. РОБОТА З ФАЙЛАМИ ТА ДОКУМЕНТАМИ ====================
@@ -788,10 +814,10 @@ function renderFileList(containerId, filesArray, sourceObj) {
 }
 
 const globalInput = document.getElementById('globalFileInput');
-function triggerFileUpload(type, taskId = null) { 
+function triggerFileUpload(type, taskId = null) {
     if (!isAdmin()) { alert("Лише адміністратор може додавати матеріали."); return; }
-    state.uploadTarget = { type, id: taskId }; 
-    if(globalInput) globalInput.click(); 
+    state.uploadTarget = { type, id: taskId };
+    if(globalInput) globalInput.click();
 }
 
 function triggerSubjectLink() {
@@ -813,10 +839,10 @@ if (globalInput) {
             await saveFileToDB({ id: fileId, data: ev.target.result });
             if (state.uploadTarget.type === 'task') {
                 const t = state.tasks.find(x => x.id === state.uploadTarget.id);
-                if(t) { 
+                if(t) {
                     if(!t.materials) t.materials = [];
-                    t.materials.push(metaObj); 
-                    renderTasks(); 
+                    t.materials.push(metaObj);
+                    renderTasks();
                     if (state.currentDetailTaskId === t.id) openTaskDetailsModal(t.id);
                     if (state.currentViewParams && state.currentViewParams.type === 'seminar') renderSeminarTasks(state.currentViewParams.name);
                 }
@@ -835,7 +861,7 @@ if (globalInput) {
 async function processDeleteFile(id, sourceType, taskId) {
     if (!isAdmin()) return;
     if(sourceType === 'task') {
-        const t = state.tasks.find(x => x.id == taskId); 
+        const t = state.tasks.find(x => x.id == taskId);
         if (t && t.materials) t.materials = t.materials.filter(f => f.id !== id);
     } else {
         const sub = state.currentViewParams.name;
@@ -845,7 +871,7 @@ async function processDeleteFile(id, sourceType, taskId) {
         if(sourceType === 'seminars') state.subjectData[sub].seminars = state.subjectData[sub].seminars.filter(f => f.id !== id);
     }
     if(!id.startsWith('lnk_')) await deleteFileFromDB(id);
-    saveData(); 
+    saveData();
     if (sourceType === 'task') {
         renderTasks();
         if (state.currentDetailTaskId == taskId) openTaskDetailsModal(Number(taskId));
@@ -868,9 +894,9 @@ function renameFile(id, sourceType, taskId) {
         if(sourceType === 'seminars') arr = state.subjectData[sub].seminars;
     }
     const file = arr.find(f => f.id === id);
-    if(file) { 
-        file.name = newName; 
-        saveData(); 
+    if(file) {
+        file.name = newName;
+        saveData();
         if (sourceType === 'task') {
             renderTasks();
             if (state.currentDetailTaskId == taskId) openTaskDetailsModal(Number(taskId));
@@ -884,17 +910,17 @@ async function viewFile(id, type, name, url) {
     if(type === 'link') { window.open(url, '_blank'); return; }
     const dbFile = await getFileFromDB(id);
     if(!dbFile) { alert("Файл не знайдено"); return; }
-    
+
     document.getElementById('viewerTitle').textContent = name;
     const body = document.getElementById('viewerBody');
     document.getElementById('btnDownloadViewer').onclick = () => downloadFileTrigger(id, name, type, url, dbFile.data);
-    
+
     if (type === 'application/pdf') {
         body.innerHTML = `<iframe src="${dbFile.data}#toolbar=0"></iframe>`;
     } else if (type.startsWith('image/')) {
         body.innerHTML = `<img src="${dbFile.data}">`;
     } else if (type.startsWith('text/') || name.endsWith('.txt')) {
-        const text = atob(dbFile.data.split(',')[1]); 
+        const text = atob(dbFile.data.split(',')[1]);
         body.innerHTML = `<pre>${decodeURIComponent(escape(text))}</pre>`;
     } else {
         body.innerHTML = `<div style="padding: 40px;"><i class="fas fa-file-alt" style="font-size: 60px; color: var(--primary-color); margin-bottom: 20px;"></i><h4>Цей формат неможливо переглянути в браузері.</h4><p class="text-muted mt-2">Будь ласка, завантажте файл на комп'ютер.</p></div>`;
@@ -918,71 +944,31 @@ function renderTasks() {
     const container = document.getElementById('tasksGrid');
     if(!container) return;
     let filtered = state.tasks;
-    if (state.taskSearch) { 
-        const s = state.taskSearch.toLowerCase(); 
-        filtered = filtered.filter(t => t.title.toLowerCase().includes(s) || (t.desc && t.desc.toLowerCase().includes(s)) || t.subject.toLowerCase().includes(s)); 
+    if (state.taskSearch) {
+        const s = state.taskSearch.toLowerCase();
+        filtered = filtered.filter(t => t.title.toLowerCase().includes(s) || (t.desc && t.desc.toLowerCase().includes(s)) || t.subject.toLowerCase().includes(s));
     }
 
-    const now = new Date(); now.setHours(0,0,0,0);
     if (state.taskFilter === 'pending') filtered = filtered.filter(t => !t.completed);
     if (state.taskFilter === 'completed') filtered = filtered.filter(t => t.completed);
-    if (state.taskFilter === 'overdue') filtered = filtered.filter(t => !t.completed && new Date(t.deadline) < now);
+    if (state.taskFilter === 'overdue') filtered = filtered.filter(t => !t.completed && getDaysUntil(t.deadline) < 0);
 
-    if (state.taskSort === 'deadline') filtered.sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
+    if (state.taskSort === 'deadline') filtered.sort((a, b) => parseDateStr(a.deadline) - parseDateStr(b.deadline));
     else if (state.taskSort === 'subject') filtered.sort((a, b) => a.subject.localeCompare(b.subject));
     else if (state.taskSort === 'date') filtered.sort((a, b) => b.id - a.id);
-
-    const adminMode = isAdmin();
 
     if (filtered.length === 0) {
         container.innerHTML = `<div class="card" style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted);">Завдань у цій категорії немає</div>`;
     } else {
-        container.innerHTML = filtered.map(t => {
-            const isOverdue = !t.completed && new Date(t.deadline) < now;
-            const typeClass = getTaskTypeClass(t.type || 'Завдання');
-            const typeBadgeClass = getTaskTypeBadgeName(t.type || 'Завдання');
-            const badgeClass = t.completed ? 'btn-join' : (isOverdue ? 'badge-danger' : '');
-            const badgeText = t.completed ? 'Виконано' : (isOverdue ? 'Прострочено' : 'До: ' + t.deadline);
-            const fileCount = t.materials ? t.materials.length : 0;
-
-            return `
-                <div id="task-card-${t.id}" class="task-card ${t.completed ? 'completed' : ''} ${isOverdue ? 'overdue' : ''} ${typeClass}" onclick="openTaskDetailsModal(${t.id})">
-                    <div>
-                        <div class="task-header">
-                            <span class="task-subject" title="${t.subject}">
-                                <span class="task-subject-name">${t.subject}</span>
-                                <span class="type-badge ${typeBadgeClass}">${t.type || 'Завдання'}</span>
-                            </span>
-                            <span class="badge ${badgeClass}">${badgeText}</span>
-                        </div>
-                        <h4 class="task-card-title" title="${t.title}">${t.title}</h4>
-                        <div class="task-desc-preview">${t.desc ? t.desc : 'Без опису'}</div>
-                    </div>
-                    <div>
-                        <div class="task-meta-row">
-                            <span class="task-files-pill">${fileCount > 0 ? `<i class="fas fa-paperclip"></i> Файлів: ${fileCount}` : ''}</span>
-                            <button class="btn-details" onclick="event.stopPropagation(); openTaskDetailsModal(${t.id})">Детальніше ↗</button>
-                        </div>
-                        <div class="task-card-footer" onclick="event.stopPropagation()">
-                            <button class="btn ${t.completed ? 'btn-outline' : 'btn-primary'} btn-sm" onclick="toggleTaskStatus(${t.id})">${t.completed ? 'Відновити' : '✓ Виконати'}</button>
-                            ${adminMode ? `
-                            <div class="flex-end gap-10">
-                                <button class="icon-btn" onclick="openEditTaskModal(${t.id})" title="Редагувати"><i class="fas fa-pen"></i></button>
-                                <button class="icon-btn delete" onclick="confirmDelete(() => processDeleteTask(${t.id}))" title="Видалити"><i class="fas fa-trash"></i></button>
-                            </div>` : ''}
-                        </div>
-                    </div>
-                </div>
-            `;
-        }).join('');
+        container.innerHTML = filtered.map(buildTaskCard).join('');
     }
-    
+
     const count = state.tasks.filter(t => !t.completed).length;
     const taskBadge = document.getElementById('taskBadge');
     if(taskBadge) taskBadge.textContent = count;
     const uncompletedCount = document.getElementById('uncompletedCount');
     if(uncompletedCount) uncompletedCount.textContent = count;
-    
+
     renderSchedule(); updateDateAndTime(); renderCalendar();
 }
 
@@ -991,8 +977,7 @@ function openTaskDetailsModal(id) {
     if (!t) return;
     state.currentDetailTaskId = id;
 
-    const now = new Date(); now.setHours(0,0,0,0);
-    const isOverdue = !t.completed && new Date(t.deadline) < now;
+    const isOverdue = !t.completed && getDaysUntil(t.deadline) < 0;
     const typeBadgeClass = getTaskTypeBadgeName(t.type || 'Завдання');
     const statusBadgeClass = t.completed ? 'btn-join' : (isOverdue ? 'badge-danger' : '');
     const statusText = t.completed ? 'Виконано' : (isOverdue ? 'Прострочено' : 'Активне');
@@ -1004,7 +989,8 @@ function openTaskDetailsModal(id) {
     `;
 
     document.getElementById('detailTaskTitle').textContent = t.title;
-    document.getElementById('detailTaskDeadline').innerHTML = `<i class="far fa-calendar-alt"></i> Дедлайн: <strong>${t.deadline}</strong>`;
+    const fullDate = parseDateStr(t.deadline).toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' });
+    document.getElementById('detailTaskDeadline').innerHTML = `<i class="far fa-calendar-alt"></i> Дедлайн: <strong>${fullDate}</strong>`;
     document.getElementById('detailTaskDesc').textContent = t.desc || 'Опис до цього завдання відсутній.';
 
     if (!t.materials) t.materials = [];
@@ -1056,7 +1042,7 @@ if(closeTaskDetailsModal) {
     };
 }
 
-function toggleTaskStatus(id) { 
+function toggleTaskStatus(id) {
     const idx = state.completedTaskIds.indexOf(id);
     if (idx > -1) {
         state.completedTaskIds.splice(idx, 1);
@@ -1064,18 +1050,18 @@ function toggleTaskStatus(id) {
         state.completedTaskIds.push(id);
     }
     syncTasksCompletion();
-    saveData(); 
-    renderTasks(); 
+    saveData();
+    renderTasks();
     if (state.currentViewParams && state.currentViewParams.type === 'seminar') renderSeminarTasks(state.currentViewParams.name);
 }
 
 function processDeleteTask(id) {
     if (!isAdmin()) { alert("Лише адміністратор може видаляти завдання."); return; }
     const t = state.tasks.find(x => x.id === id);
-    if(t && t.materials) t.materials.forEach(f => deleteFileFromDB(f.id)); 
-    state.tasks = state.tasks.filter(x => x.id !== id); 
+    if(t && t.materials) t.materials.forEach(f => deleteFileFromDB(f.id));
+    state.tasks = state.tasks.filter(x => x.id !== id);
     state.completedTaskIds = state.completedTaskIds.filter(x => x !== id);
-    saveData(); 
+    saveData();
     renderTasks();
     renderSeminarsGrid();
     if (state.currentViewParams && state.currentViewParams.type === 'seminar') renderSeminarTasks(state.currentViewParams.name);
@@ -1083,26 +1069,26 @@ function processDeleteTask(id) {
 
 const btnAddTask = document.getElementById('btnAddTask');
 if(btnAddTask) {
-    btnAddTask.onclick = () => { 
+    btnAddTask.onclick = () => {
         if (!isAdmin()) { alert("Лише адміністратор може створювати завдання."); return; }
-        document.getElementById('taskForm').reset(); 
-        document.getElementById('editTaskId').value = ''; 
-        document.getElementById('taskModalTitle').textContent = 'Нове завдання'; 
-        document.getElementById('taskModal').style.display = 'flex'; 
+        document.getElementById('taskForm').reset();
+        document.getElementById('editTaskId').value = '';
+        document.getElementById('taskModalTitle').textContent = 'Нове завдання';
+        document.getElementById('taskModal').style.display = 'flex';
     };
 }
 
 function openEditTaskModal(id) {
     if (!isAdmin()) return;
     const t = state.tasks.find(x => x.id === id); if(!t) return;
-    document.getElementById('editTaskId').value = t.id; 
-    document.getElementById('taskSubject').value = t.subject; 
-    document.getElementById('taskType').value = t.type || 'Завдання'; 
-    document.getElementById('taskTitle').value = t.title; 
-    document.getElementById('taskDesc').value = t.desc; 
-    document.getElementById('taskDeadline').value = t.deadline; 
+    document.getElementById('editTaskId').value = t.id;
+    document.getElementById('taskSubject').value = t.subject;
+    document.getElementById('taskType').value = t.type || 'Завдання';
+    document.getElementById('taskTitle').value = t.title;
+    document.getElementById('taskDesc').value = t.desc;
+    document.getElementById('taskDeadline').value = t.deadline;
     document.getElementById('taskStatus').value = t.completed ? 'completed' : 'pending';
-    document.getElementById('taskModalTitle').textContent = 'Редагувати завдання'; 
+    document.getElementById('taskModalTitle').textContent = 'Редагувати завдання';
     document.getElementById('taskModal').style.display = 'flex';
 }
 
@@ -1116,23 +1102,23 @@ if(taskForm) {
         if (!isAdmin()) { alert("У вас немає прав на додавання або редагування завдань."); return; }
 
         const isEditId = document.getElementById('editTaskId').value;
-        const taskData = { 
-            subject: document.getElementById('taskSubject').value, 
-            type: document.getElementById('taskType').value, 
-            title: document.getElementById('taskTitle').value, 
-            desc: document.getElementById('taskDesc').value, 
+        const taskData = {
+            subject: document.getElementById('taskSubject').value,
+            type: document.getElementById('taskType').value,
+            title: document.getElementById('taskTitle').value,
+            desc: document.getElementById('taskDesc').value,
             deadline: document.getElementById('taskDeadline').value
         };
 
-        if (isEditId) { 
-            const t = state.tasks.find(x => x.id == isEditId); 
-            if (t) Object.assign(t, taskData); 
+        if (isEditId) {
+            const t = state.tasks.find(x => x.id == isEditId);
+            if (t) Object.assign(t, taskData);
         } else {
             const newId = Date.now();
             state.tasks.push({ id: newId, ...taskData, materials: [], completed: false });
         }
-        saveData(); 
-        renderTasks(); 
+        saveData();
+        renderTasks();
         renderSeminarsGrid();
         if (state.currentViewParams && state.currentViewParams.type === 'seminar') renderSeminarTasks(state.currentViewParams.name);
         document.getElementById('taskModal').style.display = 'none';
@@ -1143,13 +1129,13 @@ const taskSearchInput = document.getElementById('taskSearchInput');
 if(taskSearchInput) taskSearchInput.addEventListener('input', (e) => { state.taskSearch = e.target.value; renderTasks(); });
 const taskSortSelect = document.getElementById('taskSortSelect');
 if(taskSortSelect) taskSortSelect.addEventListener('change', (e) => { state.taskSort = e.target.value; renderTasks(); });
-document.querySelectorAll('.filter-btn').forEach(btn => { 
-    btn.onclick = (e) => { 
-        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active')); 
-        e.target.classList.add('active'); 
-        state.taskFilter = e.target.dataset.filter; 
-        renderTasks(); 
-    }; 
+document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.onclick = (e) => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        state.taskFilter = e.target.dataset.filter;
+        renderTasks();
+    };
 });
 
 window.addEventListener('click', (e) => {
@@ -1162,10 +1148,10 @@ window.addEventListener('click', (e) => {
 
 // ==================== 14. ПІДТВЕРДЖЕННЯ ВИДАЛЕННЯ ====================
 let pendingDeleteAction = null;
-function confirmDelete(actionFn) { 
+function confirmDelete(actionFn) {
     if (!isAdmin()) { alert("Лише адміністратор може видаляти матеріали."); return; }
-    pendingDeleteAction = actionFn; 
-    document.getElementById('deleteConfirmModal').style.display = 'flex'; 
+    pendingDeleteAction = actionFn;
+    document.getElementById('deleteConfirmModal').style.display = 'flex';
 }
 const btnCancelDelete = document.getElementById('btnCancelDelete');
 if(btnCancelDelete) btnCancelDelete.onclick = () => { pendingDeleteAction = null; document.getElementById('deleteConfirmModal').style.display = 'none'; };
@@ -1178,11 +1164,11 @@ function setupEventListeners() {
     if(btnUpper) btnUpper.onclick = (e) => switchWeek('upper', e.target);
     const btnLower = document.getElementById('btnLowerWeek');
     if(btnLower) btnLower.onclick = (e) => switchWeek('lower', e.target);
-    if(state.weekType === 'lower') { 
-        if(btnLower) btnLower.classList.add('active'); 
-        if(btnUpper) btnUpper.classList.remove('active'); 
+    if(state.weekType === 'lower') {
+        if(btnLower) btnLower.classList.add('active');
+        if(btnUpper) btnUpper.classList.remove('active');
     }
-    
+
     const btnSaveSet = document.getElementById('btnSaveSettings');
     if(btnSaveSet) {
         btnSaveSet.onclick = () => {
@@ -1194,21 +1180,21 @@ function setupEventListeners() {
     }
 }
 
-function switchWeek(type, btn) { 
-    state.weekType = type; 
-    document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active')); 
-    btn.classList.add('active'); 
-    saveData(); 
-    renderSchedule(); 
-    updateDateAndTime(); 
+function switchWeek(type, btn) {
+    state.weekType = type;
+    document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    saveData();
+    renderSchedule();
+    updateDateAndTime();
 }
 
 function initSettings() {
     const setLangGroup = document.getElementById('setLangGroup');
     if (setLangGroup) setLangGroup.value = state.settings.langGroup || '1';
     const themeToggle = document.getElementById('themeToggle');
-    if (themeToggle && state.settings.darkTheme) { 
-        themeToggle.checked = true; 
-        document.documentElement.setAttribute('data-theme', 'dark'); 
+    if (themeToggle && state.settings.darkTheme) {
+        themeToggle.checked = true;
+        document.documentElement.setAttribute('data-theme', 'dark');
     }
 }
