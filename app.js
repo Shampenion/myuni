@@ -99,7 +99,7 @@ function updateAdminUI() {
         if (btn.innerText.includes('Зберегти')) {
             btn.style.display = adminMode ? 'inline-block' : 'none';
         }
-        if (btn.querySelector('.fa-plus') || btn.querySelector('.fa-file-upload') || btn.querySelector('.fa-link')) {
+        if (btn.querySelector('.fa-plus') || btn.querySelector('.fa-file-upload') || btn.querySelector('.fa-link') || btn.querySelector('.fa-google-drive')) {
             btn.style.display = adminMode ? 'inline-flex' : 'none';
         }
     });
@@ -107,9 +107,11 @@ function updateAdminUI() {
     const editBtn = document.getElementById('detailBtnEdit');
     const deleteBtn = document.getElementById('detailBtnDelete');
     const addFileBtn = document.getElementById('btnAddTaskFile') || document.getElementById('btnAddDetailTaskFile');
+    const addDriveBtn = document.getElementById('btnAddTaskDriveLink');
     if (editBtn) editBtn.style.display = adminMode ? 'inline-block' : 'none';
     if (deleteBtn) deleteBtn.style.display = adminMode ? 'inline-block' : 'none';
     if (addFileBtn) addFileBtn.style.display = adminMode ? 'inline-block' : 'none';
+    if (addDriveBtn) addDriveBtn.style.display = adminMode ? 'inline-flex' : 'none';
 
     const additionalInfoArea = document.getElementById('additionalInfoText');
     if (additionalInfoArea) additionalInfoArea.readOnly = !adminMode;
@@ -828,6 +830,49 @@ function triggerSubjectLink() {
     saveData(); openDetailsView('subject', state.currentViewParams.name);
 }
 
+// Додавання посилання з Google Диска (або будь-якого іншого сховища) до предмету
+function triggerGoogleDriveLink(type) {
+    if (!isAdmin()) { alert("Лише адміністратор може додавати матеріали."); return; }
+    if (!state.currentViewParams) return;
+
+    const url = prompt("Вставте посилання з Google Диска:");
+    if (!url || !url.trim()) return;
+    const cleanUrl = url.trim();
+    if (!/^https?:\/\//i.test(cleanUrl)) { alert("Посилання має починатися з https://"); return; }
+
+    const name = prompt("Назва файлу:", "Файл з Google Диска") || "Файл з Google Диска";
+    const item = { id: 'lnk_' + Date.now(), name: name, type: 'link', url: cleanUrl };
+
+    const sub = state.currentViewParams.name;
+    if (type === 'notes') state.subjectData[sub].notes.push(item);
+    else if (type === 'literature') state.subjectData[sub].literature.push(item);
+    else if (type === 'additional') state.subjectData[sub].additional_info.files.push(item);
+    else if (type === 'seminars') state.subjectData[sub].seminars.push(item);
+
+    saveData();
+    openDetailsView(state.currentViewParams.type, sub);
+}
+
+// Додавання посилання з Google Диска до матеріалів завдання
+function addTaskDriveLink(taskId) {
+    if (!isAdmin()) { alert("Лише адміністратор може додавати матеріали."); return; }
+    const t = state.tasks.find(x => x.id === taskId);
+    if (!t) return;
+
+    const url = prompt("Вставте посилання з Google Диска:");
+    if (!url || !url.trim()) return;
+    const cleanUrl = url.trim();
+    if (!/^https?:\/\//i.test(cleanUrl)) { alert("Посилання має починатися з https://"); return; }
+
+    const name = prompt("Назва файлу:", "Файл з Google Диска") || "Файл з Google Диска";
+    if (!t.materials) t.materials = [];
+    t.materials.push({ id: 'lnk_' + Date.now(), name: name, type: 'link', url: cleanUrl });
+
+    saveData();
+    renderTasks();
+    openTaskDetailsModal(t.id);
+}
+
 if (globalInput) {
     globalInput.addEventListener('change', function(e) {
         if (!isAdmin()) return;
@@ -1000,6 +1045,12 @@ function openTaskDetailsModal(id) {
     if (btnAddFile) {
         btnAddFile.onclick = () => triggerFileUpload('task', t.id);
         btnAddFile.style.display = isAdmin() ? 'inline-flex' : 'none';
+    }
+
+    const btnAddDrive = document.getElementById('btnAddTaskDriveLink');
+    if (btnAddDrive) {
+        btnAddDrive.onclick = () => addTaskDriveLink(t.id);
+        btnAddDrive.style.display = isAdmin() ? 'inline-flex' : 'none';
     }
 
     const toggleBtn = document.getElementById('detailBtnToggleStatus');
