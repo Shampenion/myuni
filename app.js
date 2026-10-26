@@ -307,6 +307,7 @@ async function deleteFileFromDB(id) { const dbInst = await dbPromise; dbInst.tra
 
 // ==================== 6. ІНІЦІАЛІЗАЦІЯ ====================
 document.addEventListener('DOMContentLoaded', () => {
+    injectMobileUXStyles();
     initSettings();
     updateDateAndTime();
     renderSchedule();
@@ -317,6 +318,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupNavigation();
     setupEventListeners();
     setupAuthEventListeners();
+    setupMobileGestures();
     loadGlobalContent();
 
     setInterval(updateDateAndTime, 60000);
@@ -337,8 +339,7 @@ function setupNavigation() {
             if(targetEl) targetEl.classList.add('active');
 
             if(window.innerWidth <= 768) {
-                const sb = document.getElementById('sidebar');
-                if(sb) sb.classList.remove('open');
+                toggleSidebarMobile(false);
             }
             if(target === 'schedule') {
                 updateDateAndTime();
@@ -348,12 +349,13 @@ function setupNavigation() {
             if(target === 'calendar') renderCalendar();
             if(target === 'seminars-tab') renderSeminarsGrid();
             updateAdminUI();
+            triggerHaptic(10);
         });
     });
     const mobBtn = document.getElementById('mobileMenuBtn');
-    if(mobBtn) mobBtn.addEventListener('click', () => document.getElementById('sidebar').classList.add('open'));
+    if(mobBtn) mobBtn.addEventListener('click', () => toggleSidebarMobile(true));
     const closeSbBtn = document.getElementById('closeSidebar');
-    if(closeSbBtn) closeSbBtn.addEventListener('click', () => document.getElementById('sidebar').classList.remove('open'));
+    if(closeSbBtn) closeSbBtn.addEventListener('click', () => toggleSidebarMobile(false));
 }
 
 // ==================== 8. ТИПИ ТА БЕЙДЖІ ЗАВДАНЬ ====================
@@ -460,6 +462,7 @@ function renderSchedule() {
     if(!container) return;
     container.innerHTML = '';
     const days = ['Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця'];
+    const shortDays = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт'];
 
     const now = new Date();
     let currentDayIndex = now.getDay() - 1;
@@ -477,6 +480,7 @@ function renderSchedule() {
         const dayCard = document.createElement('div');
         dayCard.className = `day-card ${index === currentDayIndex ? 'current-day' : ''}`;
         dayCard.id = `day-card-${index}`;
+        dayCard.dataset.dayIndex = index;
 
         let html = `<h3 class="day-title">${day} ${index === currentDayIndex ? '<span style="font-size: 11px; float: right; padding: 2px 8px; background: rgba(67, 97, 238, 0.15); border-radius: 6px;">СЬОГОДНІ</span>' : ''}</h3><div>`;
         classes.forEach(c => {
@@ -511,14 +515,13 @@ function renderSchedule() {
         container.appendChild(dayCard);
     });
 
+    // Створення мобільної панелі швидкого перемикання днів (пігулки)
+    renderMobileDayPills(container, shortDays, currentDayIndex);
+
     if (window.innerWidth <= 768) {
         setTimeout(() => {
-            const currentCard = document.getElementById(`day-card-${currentDayIndex}`);
-            if (currentCard && container) {
-                const scrollLeft = currentCard.offsetLeft - container.offsetLeft - 15;
-                container.scrollTo({ left: Math.max(0, scrollLeft), behavior: 'smooth' });
-            }
-        }, 150);
+            scrollToScheduleDay(currentDayIndex, false);
+        }, 120);
     }
 }
 
@@ -642,10 +645,33 @@ function renderCalendar() {
     }
 }
 
+function changeCalendarMonth(delta) {
+    const grid = document.getElementById('calendarGrid');
+    if (grid) {
+        grid.style.transition = 'transform 0.18s ease, opacity 0.18s ease';
+        grid.style.transform = `translateX(${delta > 0 ? '-25px' : '25px'})`;
+        grid.style.opacity = '0.3';
+    }
+    setTimeout(() => {
+        state.calendarDate.setMonth(state.calendarDate.getMonth() + delta);
+        renderCalendar();
+        if (grid) {
+            grid.style.transition = 'none';
+            grid.style.transform = `translateX(${delta > 0 ? '25px' : '-25px'})`;
+            requestAnimationFrame(() => {
+                grid.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+                grid.style.transform = 'translateX(0)';
+                grid.style.opacity = '1';
+            });
+        }
+    }, 150);
+    triggerHaptic(12);
+}
+
 const btnPrevMonth = document.getElementById('btnPrevMonth');
-if(btnPrevMonth) btnPrevMonth.onclick = () => { state.calendarDate.setMonth(state.calendarDate.getMonth() - 1); renderCalendar(); };
+if(btnPrevMonth) btnPrevMonth.onclick = () => changeCalendarMonth(-1);
 const btnNextMonth = document.getElementById('btnNextMonth');
-if(btnNextMonth) btnNextMonth.onclick = () => { state.calendarDate.setMonth(state.calendarDate.getMonth() + 1); renderCalendar(); };
+if(btnNextMonth) btnNextMonth.onclick = () => changeCalendarMonth(1);
 
 let lastIsMobile = isMobileView();
 window.addEventListener('resize', () => {
@@ -653,6 +679,7 @@ window.addEventListener('resize', () => {
     if (nowMobile !== lastIsMobile) {
         lastIsMobile = nowMobile;
         renderCalendar();
+        renderSchedule();
     }
 });
 
@@ -763,7 +790,7 @@ function saveAdditionalInfo() {
     if (!isAdmin()) { alert("Лише адміністратор може редагувати матеріали."); return; }
     if(!state.currentViewParams) return;
     state.subjectData[state.currentViewParams.name].additional_info.text = document.getElementById('additionalInfoText').value;
-    saveData(); alert("Текст збережено!");
+    saveData(); showMobileToast("Текст збережено ✓");
 }
 
 function renderSeminarTasks(subjectName) {
@@ -781,8 +808,6 @@ function renderSeminarTasks(subjectName) {
 }
 
 // ==================== 12. РОБОТА З ФАЙЛАМИ ТА ДОКУМЕНТАМИ ====================
-
-// ⚠️ ОНОВЛЕНА ФУНКЦІЯ: ІКОНКИ ДЛЯ GOOGLE ДИСКА
 function getFileIcon(filename, type) {
     if (type === 'gdrive' || (filename && filename.includes('drive.google.com'))) {
         return '<i class="fab fa-google-drive" style="color: #0F9D58;"></i>';
@@ -830,7 +855,6 @@ function triggerSubjectLink() {
     saveData(); openDetailsView('subject', state.currentViewParams.name);
 }
 
-// ⚠️ ОНОВЛЕНА ФУНКЦІЯ: ДОДАВАННЯ ПОСИЛАННЯ З GOOGLE ДИСКА ДО ПРЕДМЕТУ
 function triggerGoogleDriveLink(type) {
     if (!isAdmin()) { alert("Лише адміністратор може додавати матеріали."); return; }
     if (!state.currentViewParams) return;
@@ -857,7 +881,6 @@ function triggerGoogleDriveLink(type) {
     openDetailsView(state.currentViewParams.type, sub);
 }
 
-// ⚠️ ОНОВЛЕНА ФУНКЦІЯ: ДОДАВАННЯ ПОСИЛАННЯ З GOOGLE ДИСКА ДО ЗАВДАННЯ
 function addTaskDriveLink(taskId) {
     if (!isAdmin()) { alert("Лише адміністратор може додавати матеріали."); return; }
     const t = state.tasks.find(x => x.id === taskId);
@@ -911,7 +934,6 @@ if (globalInput) {
     });
 }
 
-// ⚠️ ОНОВЛЕНА ФУНКЦІЯ: БЕЗПЕЧНЕ ВИДАЛЕННЯ ФАЙЛІВ
 async function processDeleteFile(id, sourceType, taskId) {
     if (!isAdmin()) return;
     if(sourceType === 'task') {
@@ -925,7 +947,6 @@ async function processDeleteFile(id, sourceType, taskId) {
         if(sourceType === 'seminars') state.subjectData[sub].seminars = state.subjectData[sub].seminars.filter(f => f.id !== id);
     }
     
-    // ВАЖЛИВО: не видаляємо з локальної бази посилання та файли Google Drive
     if(!id.startsWith('lnk_') && !id.startsWith('gdrive_')) {
         await deleteFileFromDB(id);
     }
@@ -965,7 +986,6 @@ function renameFile(id, sourceType, taskId) {
     }
 }
 
-// ⚠️ ОНОВЛЕНА ФУНКЦІЯ: ВБУДОВАНИЙ ПЕРЕГЛЯД GOOGLE ДИСКА
 async function viewFile(id, type, name, url) {
     if (type === 'gdrive' || (url && url.includes('drive.google.com'))) {
         document.getElementById('viewerTitle').textContent = name;
@@ -1003,7 +1023,7 @@ if(closeViewerBtn) {
 }
 
 async function downloadFileTrigger(id, name, type, url, preloadedData = null) {
-    if(type === 'link') { window.open(url, '_blank'); return; }
+    if(type === 'link' || type === 'gdrive') { window.open(url, '_blank'); return; }
     let fileData = preloadedData || (await getFileFromDB(id))?.data;
     if(fileData) { const a = document.createElement('a'); a.href = fileData; a.download = name; a.click(); }
 }
@@ -1121,9 +1141,12 @@ function toggleTaskStatus(id) {
     const idx = state.completedTaskIds.indexOf(id);
     if (idx > -1) {
         state.completedTaskIds.splice(idx, 1);
+        showMobileToast("Завдання відновлено");
     } else {
         state.completedTaskIds.push(id);
+        showMobileToast("Завдання виконано! 🎉");
     }
+    triggerHaptic(18);
     syncTasksCompletion();
     saveData();
     renderTasks();
@@ -1133,7 +1156,11 @@ function toggleTaskStatus(id) {
 function processDeleteTask(id) {
     if (!isAdmin()) { alert("Лише адміністратор може видаляти завдання."); return; }
     const t = state.tasks.find(x => x.id === id);
-    if(t && t.materials) t.materials.forEach(f => deleteFileFromDB(f.id));
+    if(t && t.materials) {
+        t.materials.forEach(f => {
+            if(!f.id.startsWith('lnk_') && !f.id.startsWith('gdrive_')) deleteFileFromDB(f.id);
+        });
+    }
     state.tasks = state.tasks.filter(x => x.id !== id);
     state.completedTaskIds = state.completedTaskIds.filter(x => x !== id);
     saveData();
@@ -1197,6 +1224,7 @@ if(taskForm) {
         renderSeminarsGrid();
         if (state.currentViewParams && state.currentViewParams.type === 'seminar') renderSeminarTasks(state.currentViewParams.name);
         document.getElementById('taskModal').style.display = 'none';
+        showMobileToast("Завдання збережено ✓");
     };
 }
 
@@ -1210,6 +1238,7 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
         e.target.classList.add('active');
         state.taskFilter = e.target.dataset.filter;
         renderTasks();
+        triggerHaptic(10);
     };
 });
 
@@ -1247,10 +1276,12 @@ function setupEventListeners() {
     const btnSaveSet = document.getElementById('btnSaveSettings');
     if(btnSaveSet) {
         btnSaveSet.onclick = () => {
+            const setStudentName = document.getElementById('setStudentName');
+            if (setStudentName) state.settings.name = setStudentName.value;
             state.settings.langGroup = document.getElementById('setLangGroup').value;
             state.settings.darkTheme = document.getElementById('themeToggle').checked;
             if(state.settings.darkTheme) document.documentElement.setAttribute('data-theme', 'dark'); else document.documentElement.removeAttribute('data-theme');
-            saveData(); updateDateAndTime(); renderSchedule(); alert('Налаштування збережено!');
+            saveData(); updateDateAndTime(); renderSchedule(); showMobileToast('Налаштування збережено ✓');
         };
     }
 }
@@ -1258,13 +1289,21 @@ function setupEventListeners() {
 function switchWeek(type, btn) {
     state.weekType = type;
     document.querySelectorAll('.btn-toggle').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
+    if (btn) btn.classList.add('active');
+    else {
+        const activeBtn = document.getElementById(type === 'upper' ? 'btnUpperWeek' : 'btnLowerWeek');
+        if (activeBtn) activeBtn.classList.add('active');
+    }
     saveData();
     renderSchedule();
     updateDateAndTime();
+    triggerHaptic(12);
+    showMobileToast(type === 'upper' ? 'Верхній тиждень' : 'Нижній тиждень');
 }
 
 function initSettings() {
+    const setStudentName = document.getElementById('setStudentName');
+    if (setStudentName) setStudentName.value = state.settings.name || 'Студент';
     const setLangGroup = document.getElementById('setLangGroup');
     if (setLangGroup) setLangGroup.value = state.settings.langGroup || '1';
     const themeToggle = document.getElementById('themeToggle');
@@ -1272,4 +1311,384 @@ function initSettings() {
         themeToggle.checked = true;
         document.documentElement.setAttribute('data-theme', 'dark');
     }
+}
+
+// ==================== 16. НАТИВНІ МОБІЛЬНІ СВАЙПИ ТА UX ====================
+
+function triggerHaptic(ms = 12) {
+    if (navigator.vibrate) {
+        try { navigator.vibrate(ms); } catch (e) {}
+    }
+}
+
+function showMobileToast(message) {
+    let toast = document.getElementById('mobileToastNotification');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'mobileToastNotification';
+        document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add('show');
+    clearTimeout(toast._hideTimer);
+    toast._hideTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+}
+
+function injectMobileUXStyles() {
+    if (document.getElementById('nativeMobileSwipeStyles')) return;
+    const style = document.createElement('style');
+    style.id = 'nativeMobileSwipeStyles';
+    style.textContent = `
+        /* Плавний свайп-скрол для розкладу на телефонах */
+        @media (max-width: 768px) {
+            #scheduleContainer {
+                scroll-snap-type: x mandatory;
+                -webkit-overflow-scrolling: touch;
+                scroll-behavior: smooth;
+                scrollbar-width: none;
+            }
+            #scheduleContainer::-webkit-scrollbar {
+                display: none;
+            }
+            #scheduleContainer .day-card {
+                scroll-snap-align: center;
+                scroll-snap-stop: always;
+            }
+            /* Мобільні пігулки днів тижня */
+            .mobile-day-pills {
+                display: flex;
+                justify-content: space-between;
+                gap: 6px;
+                margin-bottom: 12px;
+                padding: 4px;
+                background: var(--card-bg, #fff);
+                border: 1px solid var(--border-color, rgba(0,0,0,0.08));
+                border-radius: 12px;
+            }
+            .mobile-day-pill {
+                flex: 1;
+                text-align: center;
+                padding: 7px 0;
+                font-size: 13px;
+                font-weight: 600;
+                border-radius: 9px;
+                color: var(--text-muted, #6c757d);
+                cursor: pointer;
+                transition: all 0.2s ease;
+                user-select: none;
+            }
+            .mobile-day-pill.active {
+                background: var(--primary-color, #4361ee);
+                color: #fff;
+                box-shadow: 0 2px 8px rgba(67, 97, 238, 0.3);
+            }
+            .mobile-day-pill.today-dot::after {
+                content: '';
+                display: block;
+                width: 4px;
+                height: 4px;
+                border-radius: 50%;
+                background: currentColor;
+                margin: 2px auto 0;
+            }
+            /* Індикатор свайпу для модальних вікон (Bottom Sheet Handle) */
+            .modal > div::before {
+                content: '';
+                display: block;
+                width: 38px;
+                height: 4px;
+                background: rgba(150, 150, 150, 0.35);
+                border-radius: 4px;
+                margin: -6px auto 12px auto;
+            }
+        }
+        @media (min-width: 769px) {
+            .mobile-day-pills { display: none !important; }
+        }
+        /* Затемнення фону при відкритті меню на телефоні */
+        #mobileSidebarBackdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            backdrop-filter: blur(2px);
+            z-index: 998;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+        #mobileSidebarBackdrop.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        /* Спливаючі Toast-повідомлення */
+        #mobileToastNotification {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: rgba(25, 28, 36, 0.92);
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-size: 13px;
+            font-weight: 600;
+            z-index: 9999;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+            white-space: nowrap;
+        }
+        #mobileToastNotification.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+function toggleSidebarMobile(open) {
+    const sb = document.getElementById('sidebar');
+    if (!sb) return;
+    let backdrop = document.getElementById('mobileSidebarBackdrop');
+    if (!backdrop) {
+        backdrop = document.createElement('div');
+        backdrop.id = 'mobileSidebarBackdrop';
+        backdrop.onclick = () => toggleSidebarMobile(false);
+        document.body.appendChild(backdrop);
+    }
+    if (open) {
+        sb.classList.add('open');
+        backdrop.classList.add('visible');
+    } else {
+        sb.classList.remove('open');
+        backdrop.classList.remove('visible');
+    }
+}
+
+function renderMobileDayPills(scheduleContainer, shortDays, todayIndex) {
+    let pillsBar = document.getElementById('mobileDayPillsBar');
+    if (!pillsBar) {
+        pillsBar = document.createElement('div');
+        pillsBar.id = 'mobileDayPillsBar';
+        pillsBar.className = 'mobile-day-pills';
+        scheduleContainer.parentNode.insertBefore(pillsBar, scheduleContainer);
+    }
+
+    pillsBar.innerHTML = shortDays.map((label, idx) => `
+        <div class="mobile-day-pill ${idx === todayIndex ? 'active today-dot' : ''}" data-pill-day="${idx}">
+            ${label}
+        </div>
+    `).join('');
+
+    pillsBar.querySelectorAll('.mobile-day-pill').forEach(pill => {
+        pill.onclick = () => {
+            const idx = Number(pill.dataset.pillDay);
+            scrollToScheduleDay(idx, true);
+            triggerHaptic(8);
+        };
+    });
+
+    // Оновлення активної пігулки при свайпі каруселі розкладу
+    if (!scheduleContainer._hasScrollListener) {
+        scheduleContainer._hasScrollListener = true;
+        let scrollTimeout;
+        scheduleContainer.addEventListener('scroll', () => {
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(() => {
+                const cards = scheduleContainer.querySelectorAll('.day-card');
+                const center = scheduleContainer.scrollLeft + scheduleContainer.clientWidth / 2;
+                let closestIdx = 0;
+                let minDistance = Infinity;
+                cards.forEach((card, i) => {
+                    const cardCenter = card.offsetLeft - scheduleContainer.offsetLeft + card.clientWidth / 2;
+                    const dist = Math.abs(center - cardCenter);
+                    if (dist < minDistance) {
+                        minDistance = dist;
+                        closestIdx = i;
+                    }
+                });
+                const allPills = document.querySelectorAll('#mobileDayPillsBar .mobile-day-pill');
+                allPills.forEach((p, i) => p.classList.toggle('active', i === closestIdx));
+            }, 60);
+        }, { passive: true });
+    }
+}
+
+function scrollToScheduleDay(dayIndex, smooth = true) {
+    const container = document.getElementById('scheduleContainer');
+    const card = document.getElementById(`day-card-${dayIndex}`);
+    if (!container || !card) return;
+    const scrollLeft = card.offsetLeft - container.offsetLeft - (container.clientWidth - card.clientWidth) / 2;
+    container.scrollTo({ left: Math.max(0, scrollLeft), behavior: smooth ? 'smooth' : 'auto' });
+
+    const allPills = document.querySelectorAll('#mobileDayPillsBar .mobile-day-pill');
+    allPills.forEach((p, i) => p.classList.toggle('active', i === dayIndex));
+}
+
+function isDetailSubpageOpen() {
+    const subIds = ['subject-details', 'seminar-details', 'day-details'];
+    return subIds.some(id => {
+        const el = document.getElementById(id);
+        return el && el.classList.contains('active');
+    });
+}
+
+function handleBackSwipeNavigation() {
+    const subjDet = document.getElementById('subject-details');
+    if (subjDet && subjDet.classList.contains('active') && btnBackToSubjects) {
+        btnBackToSubjects.click();
+        triggerHaptic(15);
+        return true;
+    }
+    const semDet = document.getElementById('seminar-details');
+    if (semDet && semDet.classList.contains('active') && btnBackToSeminars) {
+        btnBackToSeminars.click();
+        triggerHaptic(15);
+        return true;
+    }
+    const dayDet = document.getElementById('day-details');
+    if (dayDet && dayDet.classList.contains('active') && btnBackToCalendar) {
+        btnBackToCalendar.click();
+        triggerHaptic(15);
+        return true;
+    }
+    return false;
+}
+
+function isAnyModalOpen() {
+    return Array.from(document.querySelectorAll('.modal')).some(m => m.style.display === 'flex' || m.style.display === 'block');
+}
+
+function setupMobileGestures() {
+    let startX = 0;
+    let startY = 0;
+    let startTime = 0;
+    let touchTarget = null;
+
+    // 1. Глобальні свайпи (Відкриття/закриття меню, повернення назад, свайп календаря і фільтрів)
+    document.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 1) return;
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        startTime = Date.now();
+        touchTarget = e.target;
+    }, { passive: true });
+
+    document.addEventListener('touchend', (e) => {
+        if (!touchTarget || e.changedTouches.length !== 1) return;
+        const endX = e.changedTouches[0].clientX;
+        const endY = e.changedTouches[0].clientY;
+        const dx = endX - startX;
+        const dy = endY - startY;
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
+        const elapsed = Date.now() - startTime;
+
+        // Ігноруємо вертикальний скрол або занадто довгі дотики
+        if (elapsed > 650 || absDy > absDx * 0.85) return;
+
+        const sb = document.getElementById('sidebar');
+        const isSidebarOpen = sb && sb.classList.contains('open');
+
+        // А) Закриття відкритого сайдбару свайпом вліво
+        if (isSidebarOpen && dx < -55) {
+            toggleSidebarMobile(false);
+            triggerHaptic(10);
+            return;
+        }
+
+        // Якщо відкрита модалка — глобальні горизонтальні свайпи не виконуємо
+        if (isAnyModalOpen()) return;
+
+        // Б) Свайп від лівого краю екрана вправо (Edge Swipe)
+        if (startX <= 36 && dx > 65) {
+            // Якщо ми у вкладеній сторінці (деталі предмета/семінару/дня) — повертаємось назад
+            if (isDetailSubpageOpen()) {
+                handleBackSwipeNavigation();
+            } else {
+                // Інакше відкриваємо бічне меню
+                toggleSidebarMobile(true);
+                triggerHaptic(12);
+            }
+            return;
+        }
+
+        // В) Свайп по Календарю (вліво = наступний місяць, вправо = попередній місяць)
+        const calSec = document.getElementById('calendar');
+        if (calSec && calSec.classList.contains('active') && touchTarget.closest('#calendar')) {
+            if (absDx > 60) {
+                changeCalendarMonth(dx < 0 ? 1 : -1);
+                return;
+            }
+        }
+
+        // Г) Свайп між фільтрами у розділі "Завдання"
+        const tasksSec = document.getElementById('tasks');
+        if (tasksSec && tasksSec.classList.contains('active') && touchTarget.closest('#tasks')) {
+            if (touchTarget.tagName === 'INPUT' || touchTarget.tagName === 'SELECT') return;
+            if (absDx > 75) {
+                const filterButtons = Array.from(document.querySelectorAll('.filter-btn'));
+                if (filterButtons.length > 1) {
+                    const currentIdx = filterButtons.findIndex(b => b.classList.contains('active'));
+                    const nextIdx = dx < 0 ? currentIdx + 1 : currentIdx - 1;
+                    if (nextIdx >= 0 && nextIdx < filterButtons.length) {
+                        filterButtons[nextIdx].click();
+                        showMobileToast(`Фільтр: ${filterButtons[nextIdx].textContent.trim()}`);
+                    }
+                }
+                return;
+            }
+        }
+    }, { passive: true });
+
+    // 2. Свайп вниз для закриття модальних вікон (як шторка в мобільних додатках)
+    document.querySelectorAll('.modal').forEach(modal => {
+        let modalStartY = 0;
+        let modalCurrentY = 0;
+        let isDraggingModal = false;
+        const modalCard = modal.firstElementChild;
+        if (!modalCard) return;
+
+        modalCard.addEventListener('touchstart', (e) => {
+            // Дозволяємо тягнути вниз тільки коли контент модалки прокручений на самий верх
+            if (modalCard.scrollTop > 5) return;
+            modalStartY = e.touches[0].clientY;
+            modalCurrentY = modalStartY;
+            isDraggingModal = true;
+            modalCard.style.transition = 'none';
+        }, { passive: true });
+
+        modalCard.addEventListener('touchmove', (e) => {
+            if (!isDraggingModal) return;
+            modalCurrentY = e.touches[0].clientY;
+            const diffY = modalCurrentY - modalStartY;
+            if (diffY > 0 && modalCard.scrollTop <= 0) {
+                modalCard.style.transform = `translateY(${diffY * 0.65}px)`;
+            }
+        }, { passive: true });
+
+        modalCard.addEventListener('touchend', () => {
+            if (!isDraggingModal) return;
+            isDraggingModal = false;
+            const diffY = modalCurrentY - modalStartY;
+            modalCard.style.transition = 'transform 0.22s ease';
+
+            if (diffY > 110) {
+                modalCard.style.transform = 'translateY(100%)';
+                triggerHaptic(12);
+                setTimeout(() => {
+                    modal.style.display = 'none';
+                    modalCard.style.transform = '';
+                    if (modal.id === 'taskDetailsModal') state.currentDetailTaskId = null;
+                    if (modal.id === 'viewerModal') {
+                        const vb = document.getElementById('viewerBody');
+                        if (vb) vb.innerHTML = '';
+                    }
+                }, 200);
+            } else {
+                modalCard.style.transform = '';
+            }
+        }, { passive: true });
+    });
 }
