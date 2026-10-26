@@ -374,13 +374,11 @@ function getTaskTypeBadgeName(type) {
 // ==================== 8.1 ДЕДЛАЙНИ ТА КАРТКИ ЗАВДАНЬ ====================
 const UK_MONTHS_SHORT = ['січ', 'лют', 'бер', 'квіт', 'трав', 'черв', 'лип', 'серп', 'вер', 'жовт', 'лист', 'груд'];
 
-// "2026-10-28" -> локальна дата (без зсуву часового поясу)
 function parseDateStr(dateStr) {
     const [y, m, d] = dateStr.split('-').map(Number);
     return new Date(y, m - 1, d);
 }
 
-// Скільки днів до дедлайну: 0 = сьогодні, від'ємне = прострочено
 function getDaysUntil(dateStr) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -404,7 +402,6 @@ function getDeadlineBadge(t) {
     return { cls: 'badge-neutral', text: formatDeadline(t.deadline) };
 }
 
-// Єдина розмітка картки завдання (використовується скрізь)
 function buildTaskCard(t) {
     const isOverdue = !t.completed && getDaysUntil(t.deadline) < 0;
     const typeClass = getTaskTypeClass(t.type || 'Завдання');
@@ -621,7 +618,6 @@ function renderCalendar() {
 
         let tasksHtml = '';
         if (mobile) {
-            // На телефоні: лише крапки-індикатори, щоб не було нечитабельних плашок
             if (dayTasks.length > 0) {
                 const hasOpen = dayTasks.some(t => !t.completed);
                 const hasOverdue = dayTasks.some(t => !t.completed && getDaysUntil(t.deadline) < 0);
@@ -651,7 +647,6 @@ if(btnPrevMonth) btnPrevMonth.onclick = () => { state.calendarDate.setMonth(stat
 const btnNextMonth = document.getElementById('btnNextMonth');
 if(btnNextMonth) btnNextMonth.onclick = () => { state.calendarDate.setMonth(state.calendarDate.getMonth() + 1); renderCalendar(); };
 
-// Перемальовуємо календар при зміні розміру (мобільний/десктоп)
 let lastIsMobile = isMobileView();
 window.addEventListener('resize', () => {
     const nowMobile = isMobileView();
@@ -786,10 +781,15 @@ function renderSeminarTasks(subjectName) {
 }
 
 // ==================== 12. РОБОТА З ФАЙЛАМИ ТА ДОКУМЕНТАМИ ====================
+
+// ⚠️ ОНОВЛЕНА ФУНКЦІЯ: ІКОНКИ ДЛЯ GOOGLE ДИСКА
 function getFileIcon(filename, type) {
-    if(type === 'link') return '<i class="fas fa-link"></i>';
-    if(filename.endsWith('.pdf')) return '<i class="fas fa-file-pdf" style="color: #e23636;"></i>';
-    if(filename.match(/\.(jpg|jpeg|png)$/i)) return '<i class="fas fa-file-image" style="color: #00a8ff;"></i>';
+    if (type === 'gdrive' || (filename && filename.includes('drive.google.com'))) {
+        return '<i class="fab fa-google-drive" style="color: #0F9D58;"></i>';
+    }
+    if (type === 'link') return '<i class="fas fa-link" style="color: #4285F4;"></i>';
+    if (filename && filename.endsWith('.pdf')) return '<i class="fas fa-file-pdf" style="color: #e23636;"></i>';
+    if (filename && filename.match(/\.(jpg|jpeg|png)$/i)) return '<i class="fas fa-file-image" style="color: #00a8ff;"></i>';
     return '<i class="fas fa-file-alt"></i>';
 }
 
@@ -830,18 +830,22 @@ function triggerSubjectLink() {
     saveData(); openDetailsView('subject', state.currentViewParams.name);
 }
 
-// Додавання посилання з Google Диска (або будь-якого іншого сховища) до предмету
+// ⚠️ ОНОВЛЕНА ФУНКЦІЯ: ДОДАВАННЯ ПОСИЛАННЯ З GOOGLE ДИСКА ДО ПРЕДМЕТУ
 function triggerGoogleDriveLink(type) {
     if (!isAdmin()) { alert("Лише адміністратор може додавати матеріали."); return; }
     if (!state.currentViewParams) return;
 
     const url = prompt("Вставте посилання з Google Диска:");
     if (!url || !url.trim()) return;
-    const cleanUrl = url.trim();
+    let cleanUrl = url.trim();
     if (!/^https?:\/\//i.test(cleanUrl)) { alert("Посилання має починатися з https://"); return; }
+    
+    if (cleanUrl.includes('drive.google.com/file/d/')) {
+        cleanUrl = cleanUrl.replace(/\/view(\?.*)?$/, '/preview');
+    }
 
     const name = prompt("Назва файлу:", "Файл з Google Диска") || "Файл з Google Диска";
-    const item = { id: 'lnk_' + Date.now(), name: name, type: 'link', url: cleanUrl };
+    const item = { id: 'gdrive_' + Date.now(), name: name, type: 'gdrive', url: cleanUrl };
 
     const sub = state.currentViewParams.name;
     if (type === 'notes') state.subjectData[sub].notes.push(item);
@@ -853,7 +857,7 @@ function triggerGoogleDriveLink(type) {
     openDetailsView(state.currentViewParams.type, sub);
 }
 
-// Додавання посилання з Google Диска до матеріалів завдання
+// ⚠️ ОНОВЛЕНА ФУНКЦІЯ: ДОДАВАННЯ ПОСИЛАННЯ З GOOGLE ДИСКА ДО ЗАВДАННЯ
 function addTaskDriveLink(taskId) {
     if (!isAdmin()) { alert("Лише адміністратор може додавати матеріали."); return; }
     const t = state.tasks.find(x => x.id === taskId);
@@ -861,12 +865,16 @@ function addTaskDriveLink(taskId) {
 
     const url = prompt("Вставте посилання з Google Диска:");
     if (!url || !url.trim()) return;
-    const cleanUrl = url.trim();
+    let cleanUrl = url.trim();
     if (!/^https?:\/\//i.test(cleanUrl)) { alert("Посилання має починатися з https://"); return; }
+    
+    if (cleanUrl.includes('drive.google.com/file/d/')) {
+        cleanUrl = cleanUrl.replace(/\/view(\?.*)?$/, '/preview');
+    }
 
     const name = prompt("Назва файлу:", "Файл з Google Диска") || "Файл з Google Диска";
     if (!t.materials) t.materials = [];
-    t.materials.push({ id: 'lnk_' + Date.now(), name: name, type: 'link', url: cleanUrl });
+    t.materials.push({ id: 'gdrive_' + Date.now(), name: name, type: 'gdrive', url: cleanUrl });
 
     saveData();
     renderTasks();
@@ -903,6 +911,7 @@ if (globalInput) {
     });
 }
 
+// ⚠️ ОНОВЛЕНА ФУНКЦІЯ: БЕЗПЕЧНЕ ВИДАЛЕННЯ ФАЙЛІВ
 async function processDeleteFile(id, sourceType, taskId) {
     if (!isAdmin()) return;
     if(sourceType === 'task') {
@@ -915,7 +924,12 @@ async function processDeleteFile(id, sourceType, taskId) {
         if(sourceType === 'additional') state.subjectData[sub].additional_info.files = state.subjectData[sub].additional_info.files.filter(f => f.id !== id);
         if(sourceType === 'seminars') state.subjectData[sub].seminars = state.subjectData[sub].seminars.filter(f => f.id !== id);
     }
-    if(!id.startsWith('lnk_')) await deleteFileFromDB(id);
+    
+    // ВАЖЛИВО: не видаляємо з локальної бази посилання та файли Google Drive
+    if(!id.startsWith('lnk_') && !id.startsWith('gdrive_')) {
+        await deleteFileFromDB(id);
+    }
+    
     saveData();
     if (sourceType === 'task') {
         renderTasks();
@@ -951,7 +965,17 @@ function renameFile(id, sourceType, taskId) {
     }
 }
 
+// ⚠️ ОНОВЛЕНА ФУНКЦІЯ: ВБУДОВАНИЙ ПЕРЕГЛЯД GOOGLE ДИСКА
 async function viewFile(id, type, name, url) {
+    if (type === 'gdrive' || (url && url.includes('drive.google.com'))) {
+        document.getElementById('viewerTitle').textContent = name;
+        const body = document.getElementById('viewerBody');
+        document.getElementById('btnDownloadViewer').onclick = () => window.open(url, '_blank');
+        body.innerHTML = `<iframe src="${url}" style="width:100%; height:75vh; border:none; border-radius: 8px;" allow="autoplay"></iframe>`;
+        document.getElementById('viewerModal').style.display = 'flex';
+        return;
+    }
+    
     if(type === 'link') { window.open(url, '_blank'); return; }
     const dbFile = await getFileFromDB(id);
     if(!dbFile) { alert("Файл не знайдено"); return; }
@@ -961,14 +985,14 @@ async function viewFile(id, type, name, url) {
     document.getElementById('btnDownloadViewer').onclick = () => downloadFileTrigger(id, name, type, url, dbFile.data);
 
     if (type === 'application/pdf') {
-        body.innerHTML = `<iframe src="${dbFile.data}#toolbar=0"></iframe>`;
+        body.innerHTML = `<iframe src="${dbFile.data}#toolbar=0" style="width:100%; height:75vh; border:none;"></iframe>`;
     } else if (type.startsWith('image/')) {
-        body.innerHTML = `<img src="${dbFile.data}">`;
+        body.innerHTML = `<img src="${dbFile.data}" style="max-width:100%; max-height:75vh; display:block; margin:auto; border-radius: 8px;">`;
     } else if (type.startsWith('text/') || name.endsWith('.txt')) {
         const text = atob(dbFile.data.split(',')[1]);
-        body.innerHTML = `<pre>${decodeURIComponent(escape(text))}</pre>`;
+        body.innerHTML = `<pre style="white-space: pre-wrap; font-family: inherit;">${decodeURIComponent(escape(text))}</pre>`;
     } else {
-        body.innerHTML = `<div style="padding: 40px;"><i class="fas fa-file-alt" style="font-size: 60px; color: var(--primary-color); margin-bottom: 20px;"></i><h4>Цей формат неможливо переглянути в браузері.</h4><p class="text-muted mt-2">Будь ласка, завантажте файл на комп'ютер.</p></div>`;
+        body.innerHTML = `<div style="padding: 40px; text-align: center;"><i class="fas fa-file-alt" style="font-size: 60px; color: var(--primary-color); margin-bottom: 20px;"></i><h4>Цей формат неможливо переглянути в браузері.</h4><p class="text-muted mt-2">Будь ласка, завантажте файл на комп'ютер.</p></div>`;
     }
     document.getElementById('viewerModal').style.display = 'flex';
 }
