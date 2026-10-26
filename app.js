@@ -11,42 +11,16 @@ const firebaseConfig = {
     measurementId: "G-QL7PBB6GPG"
 };
 
-let auth = null;
-let db = null;
-try {
-    if (typeof firebase !== 'undefined') {
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
-        auth = firebase.auth();
-        db = firebase.firestore();
-    }
-} catch (e) {
-    console.error("Помилка ініціалізації Firebase:", e);
-}
+// Ініціалізація
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
 
 let currentUser = null;
 let isSignUpMode = false;
 
 function isAdmin() {
-    return currentUser && currentUser.email && currentUser.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
-}
-
-function safeGetStorage(key, fallback) {
-    try {
-        const val = localStorage.getItem(key);
-        return val ? JSON.parse(val) : fallback;
-    } catch (e) {
-        return fallback;
-    }
-}
-
-function safeSetStorage(key, val) {
-    try {
-        localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val));
-    } catch (e) {
-        console.warn("Локальне сховище обмежене браузером.");
-    }
+    return currentUser && currentUser.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 }
 
 // ==================== 2. БАЗА ДАНИХ РОЗКЛАДУ ====================
@@ -96,19 +70,12 @@ const scheduleDB = {
 const allSubjectsList = [...new Set([...scheduleDB.upper, ...scheduleDB.lower]
     .filter(c => c.type !== 'window').map(c => c.subject.split('(')[0].trim()))];
 
-let savedWeekType = 'upper';
-try {
-    const val = localStorage.getItem('weekType');
-    if (val === 'upper' || val === 'lower') savedWeekType = val;
-} catch(e) {}
-
 let state = {
-    weekType: savedWeekType,
-    tasks: safeGetStorage('tasks', []),
-    completedTaskIds: safeGetStorage('myCompletedTaskIds', []),
-    subjectData: safeGetStorage('subjectData', {}),
-    // Видалено налаштування name
-    settings: safeGetStorage('settings', { langGroup: '1', darkTheme: false }),
+    weekType: localStorage.getItem('weekType') || 'upper',
+    tasks: JSON.parse(localStorage.getItem('tasks')) || [],
+    completedTaskIds: JSON.parse(localStorage.getItem('myCompletedTaskIds')) || [],
+    subjectData: JSON.parse(localStorage.getItem('subjectData')) || {},
+    settings: JSON.parse(localStorage.getItem('settings')) || { name: 'Студент', langGroup: '1', darkTheme: false },
     currentViewParams: null, 
     uploadTarget: null,
     taskFilter: 'pending', taskSearch: '', taskSort: 'deadline',
@@ -116,31 +83,23 @@ let state = {
     currentDetailTaskId: null
 };
 
-function ensureSubjectDataStructure() {
-    allSubjectsList.forEach(sub => {
-        if (!state.subjectData[sub]) {
-            state.subjectData[sub] = { notes: [], literature: [], seminars: [], additional_info: { text: '', files: [] } };
-        } else {
-            if (!state.subjectData[sub].notes) state.subjectData[sub].notes = [];
-            if (!state.subjectData[sub].literature) state.subjectData[sub].literature = [];
-            if (!state.subjectData[sub].seminars) state.subjectData[sub].seminars = [];
-            if (!state.subjectData[sub].additional_info) state.subjectData[sub].additional_info = { text: '', files: [] };
-            if (!state.subjectData[sub].additional_info.files) state.subjectData[sub].additional_info.files = [];
-        }
-    });
-}
-ensureSubjectDataStructure();
+allSubjectsList.forEach(sub => {
+    if(!state.subjectData[sub]) state.subjectData[sub] = { notes: [], literature: [], seminars: [], additional_info: { text: '', files: [] } };
+});
 
-// ==================== 3. СИНХРОНІЗАЦІЯ ДАНИХ ====================
+// ==================== 3. СИНХРОНІЗАЦІЯ ДАНИХ (ADMIN vs USER) ====================
 function updateAdminUI() {
     const adminMode = isAdmin();
+    
     const btnAddTask = document.getElementById('btnAddTask');
     if (btnAddTask) btnAddTask.style.display = adminMode ? 'inline-flex' : 'none';
 
     const uploadButtons = document.querySelectorAll('.panel-card button, #subject-details button:not(#btnBackToSubjects), #seminar-details button:not(#btnBackToSeminars)');
     uploadButtons.forEach(btn => {
-        if (btn.innerText.includes('Зберегти')) btn.style.display = adminMode ? 'inline-block' : 'none';
-        if (btn.querySelector('.fa-plus') || btn.querySelector('.fa-file-upload') || btn.querySelector('.fa-link') || btn.querySelector('.fa-google-drive') || btn.innerHTML.includes('Диск')) {
+        if (btn.innerText.includes('Зберегти')) {
+            btn.style.display = adminMode ? 'inline-block' : 'none';
+        }
+        if (btn.querySelector('.fa-plus') || btn.querySelector('.fa-file-upload') || btn.querySelector('.fa-link')) {
             btn.style.display = adminMode ? 'inline-flex' : 'none';
         }
     });
@@ -148,33 +107,46 @@ function updateAdminUI() {
     const editBtn = document.getElementById('detailBtnEdit');
     const deleteBtn = document.getElementById('detailBtnDelete');
     const addFileBtn = document.getElementById('btnAddTaskFile') || document.getElementById('btnAddDetailTaskFile');
-    const addDriveBtn = document.getElementById('btnAddTaskDriveLink');
     if (editBtn) editBtn.style.display = adminMode ? 'inline-block' : 'none';
     if (deleteBtn) deleteBtn.style.display = adminMode ? 'inline-block' : 'none';
-    if (addFileBtn) addFileBtn.style.display = adminMode ? 'inline-flex' : 'none';
-    if (addDriveBtn) addDriveBtn.style.display = adminMode ? 'inline-flex' : 'none';
+    if (addFileBtn) addFileBtn.style.display = adminMode ? 'inline-block' : 'none';
     
     const additionalInfoArea = document.getElementById('additionalInfoText');
     if (additionalInfoArea) additionalInfoArea.readOnly = !adminMode;
 }
 
+// 🛡️ БЕЗПЕЧНЕ ЗБЕРЕЖЕННЯ ДАНИХ 🛡️
 function saveData() {
-    safeSetStorage('weekType', state.weekType);
-    safeSetStorage('tasks', state.tasks);
-    safeSetStorage('myCompletedTaskIds', state.completedTaskIds);
-    safeSetStorage('subjectData', state.subjectData);
-    safeSetStorage('settings', state.settings);
+    // 1. Локальний кеш
+    localStorage.setItem('weekType', state.weekType);
+    localStorage.setItem('tasks', JSON.stringify(state.tasks));
+    localStorage.setItem('myCompletedTaskIds', JSON.stringify(state.completedTaskIds));
+    localStorage.setItem('subjectData', JSON.stringify(state.subjectData));
+    localStorage.setItem('settings', JSON.stringify(state.settings));
 
     if (!db) return;
 
+    // 2. Оновлення глобальної хмари (ТІЛЬКИ з перевіркою на порожнечу)
     if (isAdmin()) {
-        db.collection('global_content').doc('main_data').set({
-            tasks: state.tasks,
-            subjectData: state.subjectData,
+        const updatePayload = {
             updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true }).catch(err => console.error("Помилка запису в Firestore:", err));
+        };
+
+        // Записуємо завдання у хмару, тільки якщо вони реально існують
+        if (Array.isArray(state.tasks) && state.tasks.length > 0) {
+            updatePayload.tasks = state.tasks;
+        }
+
+        // Записуємо предмети у хмару, тільки якщо масив не порожній
+        if (state.subjectData && Object.keys(state.subjectData).length > 0) {
+            updatePayload.subjectData = state.subjectData;
+        }
+
+        db.collection('global_content').doc('main_data').set(updatePayload, { merge: true })
+            .catch(err => console.error("Помилка запису в Firestore:", err));
     }
 
+    // 3. Збереження персональних відміток
     if (currentUser) {
         db.collection('students').doc(currentUser.uid).set({
             completedTaskIds: state.completedTaskIds,
@@ -184,6 +156,7 @@ function saveData() {
     }
 }
 
+// 🛡️ БЕЗПЕЧНЕ ЗАВАНТАЖЕННЯ ДАНИХ 🛡️
 async function loadGlobalContent() {
     if (!db) return;
     try {
@@ -191,10 +164,15 @@ async function loadGlobalContent() {
         const doc = await docRef.get();
         if (doc.exists) {
             const data = doc.data();
-            if (data.tasks) state.tasks = data.tasks;
-            if (data.subjectData) {
+            // Беремо завдання з хмари тільки якщо вони там є
+            if (data.tasks && data.tasks.length > 0) {
+                state.tasks = data.tasks;
+                localStorage.setItem('tasks', JSON.stringify(state.tasks));
+            }
+            // Беремо предмети з хмари тільки якщо вони там є
+            if (data.subjectData && Object.keys(data.subjectData).length > 0) {
                 state.subjectData = { ...state.subjectData, ...data.subjectData };
-                ensureSubjectDataStructure();
+                localStorage.setItem('subjectData', JSON.stringify(state.subjectData));
             }
         } else if (isAdmin()) {
             saveData();
@@ -237,30 +215,28 @@ function syncTasksCompletion() {
 }
 
 // ==================== 4. АВТОРИЗАЦІЯ FIREBASE ====================
-if (auth) {
-    auth.onAuthStateChanged(user => {
-        currentUser = user;
-        const userDisplay = document.getElementById('userDisplay');
-        const btnAuthAction = document.getElementById('btnAuthAction');
+auth.onAuthStateChanged(user => {
+    currentUser = user;
+    const userDisplay = document.getElementById('userDisplay');
+    const btnAuthAction = document.getElementById('btnAuthAction');
 
-        if (user) {
-            const isAdm = isAdmin();
-            if (userDisplay) {
-                userDisplay.innerHTML = isAdm 
-                    ? `<strong>👑 Адміністратор</strong><br><small>${user.email}</small>` 
-                    : `<strong>Студент</strong><br><small>${user.email}</small>`;
-            }
-            if (btnAuthAction) btnAuthAction.innerHTML = '<i class="fas fa-sign-out-alt"></i> Вийти';
-            loadUserData();
-        } else {
-            if (userDisplay) userDisplay.innerText = 'Гість (лише перегляд)';
-            if (btnAuthAction) btnAuthAction.innerHTML = '<i class="fas fa-sign-in-alt"></i> Увійти';
+    if (user) {
+        const isAdm = isAdmin();
+        if (userDisplay) {
+            userDisplay.innerHTML = isAdm 
+                ? `<strong>👑 Адміністратор</strong><br><small>${user.email}</small>` 
+                : `<strong>Студент</strong><br><small>${user.email}</small>`;
         }
-        
-        updateAdminUI();
-        renderTasks();
-    });
-}
+        if (btnAuthAction) btnAuthAction.innerHTML = '<i class="fas fa-sign-out-alt"></i> Вийти';
+        loadUserData();
+    } else {
+        if (userDisplay) userDisplay.innerText = 'Гість (лише перегляд)';
+        if (btnAuthAction) btnAuthAction.innerHTML = '<i class="fas fa-sign-in-alt"></i> Увійти';
+    }
+    
+    updateAdminUI();
+    renderTasks();
+});
 
 function setupAuthEventListeners() {
     const btnAuthAction = document.getElementById('btnAuthAction');
@@ -271,16 +247,18 @@ function setupAuthEventListeners() {
 
     if (btnAuthAction) {
         btnAuthAction.addEventListener('click', () => {
-            if (currentUser && auth) {
+            if (currentUser) {
                 auth.signOut();
             } else if (authModal) {
                 authModal.style.display = 'flex';
             }
         });
     }
+
     if (closeAuthModal && authModal) {
         closeAuthModal.addEventListener('click', () => authModal.style.display = 'none');
     }
+
     if (btnToggleAuthMode) {
         btnToggleAuthMode.addEventListener('click', () => {
             isSignUpMode = !isSignUpMode;
@@ -291,11 +269,11 @@ function setupAuthEventListeners() {
             if (authError) authError.style.display = 'none';
         });
     }
+
     if (authForm) {
         authForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            if (!auth) return;
-            const email = document.getElementById('authEmail').value.trim();
+            const email = document.getElementById('authEmail').value;
             const pass = document.getElementById('authPassword').value;
             const errorEl = document.getElementById('authError');
             if (errorEl) errorEl.style.display = 'none';
@@ -318,54 +296,16 @@ function setupAuthEventListeners() {
     }
 }
 
-// ==================== 5. INDEXED DB ====================
-const dbPromise = new Promise((resolve) => {
-    try {
-        if (!window.indexedDB) {
-            resolve(null);
-            return;
-        }
-        const request = indexedDB.open('UniAppFilesDB', 1);
-        request.onupgradeneeded = e => {
-            const dbInst = e.target.result;
-            if (!dbInst.objectStoreNames.contains('files')) {
-                dbInst.createObjectStore('files', { keyPath: 'id' });
-            }
-        };
-        request.onsuccess = e => resolve(e.target.result);
-        request.onerror = () => resolve(null);
-    } catch (err) {
-        resolve(null);
-    }
+// ==================== 5. INDEXED DB (ЗБЕРЕЖЕННЯ ФАЙЛІВ) ====================
+const dbPromise = new Promise((resolve, reject) => {
+    const request = indexedDB.open('UniAppFilesDB', 1);
+    request.onupgradeneeded = e => e.target.result.createObjectStore('files', { keyPath: 'id' });
+    request.onsuccess = e => resolve(e.target.result);
+    request.onerror = e => reject('Помилка БД');
 });
-
-async function saveFileToDB(fileObj) {
-    try {
-        const dbInst = await dbPromise;
-        if (!dbInst) return;
-        dbInst.transaction('files', 'readwrite').objectStore('files').put(fileObj);
-    } catch (e) { console.warn(e); }
-}
-
-async function getFileFromDB(id) {
-    try {
-        const dbInst = await dbPromise;
-        if (!dbInst) return null;
-        return new Promise(res => {
-            const req = dbInst.transaction('files', 'readonly').objectStore('files').get(id);
-            req.onsuccess = () => res(req.result);
-            req.onerror = () => res(null);
-        });
-    } catch (e) { return null; }
-}
-
-async function deleteFileFromDB(id) {
-    try {
-        const dbInst = await dbPromise;
-        if (!dbInst) return;
-        dbInst.transaction('files', 'readwrite').objectStore('files').delete(id);
-    } catch (e) { console.warn(e); }
-}
+async function saveFileToDB(fileObj) { const dbInst = await dbPromise; dbInst.transaction('files', 'readwrite').objectStore('files').put(fileObj); }
+async function getFileFromDB(id) { const dbInst = await dbPromise; return new Promise(res => { const req = dbInst.transaction('files', 'readonly').objectStore('files').get(id); req.onsuccess = () => res(req.result); }); }
+async function deleteFileFromDB(id) { const dbInst = await dbPromise; dbInst.transaction('files', 'readwrite').objectStore('files').delete(id); }
 
 // ==================== 6. ІНІЦІАЛІЗАЦІЯ ====================
 document.addEventListener('DOMContentLoaded', () => {
@@ -375,11 +315,11 @@ document.addEventListener('DOMContentLoaded', () => {
     renderTasks(); 
     renderSubjectsGrid(); 
     renderSeminarsGrid(); 
-    renderCalendar(); 
+    renderCalendar();
     setupNavigation(); 
     setupEventListeners();
     setupAuthEventListeners();
-    loadGlobalContent();
+    loadGlobalContent(); 
     
     setInterval(updateDateAndTime, 60000); 
 });
@@ -388,53 +328,37 @@ document.addEventListener('DOMContentLoaded', () => {
 function setupNavigation() {
     const navItems = document.querySelectorAll('.nav-item');
     const sections = document.querySelectorAll('.page-section');
-    const sidebar = document.getElementById('sidebar');
-
     navItems.forEach(item => {
         item.addEventListener('click', (e) => {
             e.preventDefault();
             navItems.forEach(nav => nav.classList.remove('active'));
             sections.forEach(sec => sec.classList.remove('active'));
             item.classList.add('active');
-            
             const target = item.getAttribute('data-target');
             const targetEl = document.getElementById(target);
-            if (targetEl) targetEl.classList.add('active');
+            if(targetEl) targetEl.classList.add('active');
             
-            if (window.innerWidth <= 768 && sidebar) {
-                sidebar.classList.remove('open');
+            if(window.innerWidth <= 768) {
+                const sb = document.getElementById('sidebar');
+                if(sb) sb.classList.remove('open');
             }
-            if (target === 'schedule') {
+            if(target === 'schedule') {
                 updateDateAndTime();
                 renderSchedule();
             }
-            if (target === 'tasks') renderTasks();
-            if (target === 'calendar') renderCalendar();
-            if (target === 'seminars-tab') renderSeminarsGrid();
+            if(target === 'tasks') renderTasks();
+            if(target === 'calendar') renderCalendar();
+            if(target === 'seminars-tab') renderSeminarsGrid();
             updateAdminUI();
         });
     });
-
     const mobBtn = document.getElementById('mobileMenuBtn');
-    if (mobBtn && sidebar) {
-        mobBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            sidebar.classList.toggle('open');
-        });
-    }
+    if(mobBtn) mobBtn.addEventListener('click', () => document.getElementById('sidebar').classList.add('open'));
     const closeSbBtn = document.getElementById('closeSidebar');
-    if (closeSbBtn && sidebar) {
-        closeSbBtn.addEventListener('click', () => sidebar.classList.remove('open'));
-    }
-    document.addEventListener('click', (e) => {
-        if (window.innerWidth <= 768 && sidebar && sidebar.classList.contains('open')) {
-            if (!sidebar.contains(e.target) && e.target !== mobBtn && (!mobBtn || !mobBtn.contains(e.target))) {
-                sidebar.classList.remove('open');
-            }
-        }
-    });
+    if(closeSbBtn) closeSbBtn.addEventListener('click', () => document.getElementById('sidebar').classList.remove('open'));
 }
 
+// ==================== 8. ТИПИ ТА БЕЙДЖІ ЗАВДАНЬ ====================
 function getTaskTypeClass(type) {
     if (type === 'Тест') return 'type-test';
     if (type === 'Семінар') return 'type-seminar';
@@ -449,14 +373,14 @@ function getTaskTypeBadgeName(type) {
     return 'badge-type-task';
 }
 
+// ==================== 9. РОЗКЛАД ТА ІНДИКАТОРИ ====================
 function getDynamicClassData(c) {
     let d = { ...c };
     if (d.teacher === 'dynamic') {
         d.teacher = state.settings.langGroup === '1' ? 'Ступенко М.' : 'Юзефович К.';
         d.room = state.settings.langGroup === '1' ? '408' : '418';
         d.link = state.settings.langGroup === '1' ? 'https://us04web.zoom.us/j/7282426220' : 'https://us02web.zoom.us/j/8144225837';
-    }
-    return d;
+    } return d;
 }
 
 function getTaskAlertIndicator(subjectName) {
@@ -465,10 +389,9 @@ function getTaskAlertIndicator(subjectName) {
     return hasPending ? `<i class="fas fa-fire task-alert-icon" title="Є невиконані завдання!"></i>` : '';
 }
 
-// ==================== 8. РОЗКЛАД ТА СВАЙП КАРУСЕЛЬ ====================
 function renderSchedule() {
     const container = document.getElementById('scheduleContainer'); 
-    if (!container) return;
+    if(!container) return;
     container.innerHTML = '';
     const days = ['Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця'];
     
@@ -535,7 +458,7 @@ function renderSchedule() {
 
 function parseClassTime(timeStr, baseDate = new Date()) {
     const parts = timeStr.split(/[-–]/);
-    if (parts.length !== 2) return null;
+    if(parts.length !== 2) return null;
     const [sh, sm] = parts[0].split(':').map(Number);
     const [eh, em] = parts[1].split(':').map(Number);
     const start = new Date(baseDate); start.setHours(sh, sm, 0, 0);
@@ -547,46 +470,32 @@ function getNextClassInfo() {
     const now = new Date();
     const daysUk = ['Неділя', 'Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця', 'Субота'];
     for (let offset = 0; offset < 14; offset++) {
-        const targetDate = new Date(now);
-        targetDate.setDate(now.getDate() + offset);
+        const targetDate = new Date(now); targetDate.setDate(now.getDate() + offset);
         const dayName = daysUk[targetDate.getDay()];
-        let targetWeekType = state.weekType;
-        let tempDate = new Date(now);
-        let mondaysPassed = 0;
-        for (let i = 1; i <= offset; i++) {
-            tempDate.setDate(tempDate.getDate() + 1);
-            if (tempDate.getDay() === 1) mondaysPassed++;
-        }
+        let targetWeekType = state.weekType; let tempDate = new Date(now); let mondaysPassed = 0;
+        for(let i = 1; i <= offset; i++){ tempDate.setDate(tempDate.getDate() + 1); if(tempDate.getDay() === 1) mondaysPassed++; }
         if (mondaysPassed % 2 !== 0) targetWeekType = targetWeekType === 'upper' ? 'lower' : 'upper';
         const classes = scheduleDB[targetWeekType].filter(c => c.day === dayName && c.type !== 'window');
         for (let i = 0; i < classes.length; i++) {
-            const c = classes[i];
-            const times = parseClassTime(c.time, targetDate);
-            if (!times) continue;
+            const c = classes[i]; const times = parseClassTime(c.time, targetDate); if(!times) continue;
             if (offset === 0) {
                 if (now >= times.start && now <= times.end) return { status: 'ongoing', class: c, end: times.end };
                 if (now < times.start) return { status: 'next', class: c, start: times.start, isToday: true };
-            } else {
-                return { status: 'next_day', class: c, start: times.start, dayName: dayName, isToday: false };
-            }
+            } else return { status: 'next_day', class: c, start: times.start, dayName: dayName, isToday: false };
         }
-    }
-    return { status: 'none' };
+    } return { status: 'none' };
 }
 
 function getTimeRemainingStr(targetDate) {
-    const diffMs = targetDate - new Date();
-    if (diffMs <= 0) return '';
+    const diffMs = targetDate - new Date(); if (diffMs <= 0) return '';
     const diffMins = Math.floor(diffMs / 60000);
-    const hours = Math.floor(diffMins / 60);
-    const mins = diffMins % 60;
+    const hours = Math.floor(diffMins / 60); const mins = diffMins % 60;
     return hours > 0 ? `через ${hours} год ${mins} хв` : `через ${mins} хв`;
 }
 
 function updateDateAndTime() {
     const now = new Date();
     const dateEl = document.getElementById('currentDate');
-    // Видалено логіку для привітання (greetingName)
     if (dateEl) dateEl.textContent = now.toLocaleDateString('uk-UA', { weekday: 'long', month: 'long', day: 'numeric' });
     
     const weekBadge = document.getElementById('currentWeekTypeBadge');
@@ -614,16 +523,15 @@ function updateDateAndTime() {
     }
 }
 
-// ==================== 9. КАЛЕНДАР ТА ЗАВДАННЯ ====================
+// ==================== 10. КАЛЕНДАР ====================
 function renderCalendar() {
     const grid = document.getElementById('calendarGrid'); 
-    if (!grid) return;
+    if(!grid) return;
     grid.innerHTML = '';
-    const year = state.calendarDate.getFullYear();
-    const month = state.calendarDate.getMonth();
+    const year = state.calendarDate.getFullYear(); const month = state.calendarDate.getMonth();
     const monthNames = ['Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень', 'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень'];
     const calMY = document.getElementById('calendarMonthYear');
-    if (calMY) calMY.textContent = `${monthNames[month]} ${year}`;
+    if(calMY) calMY.textContent = `${monthNames[month]} ${year}`;
     
     const firstDay = new Date(year, month, 1).getDay(); 
     const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -653,29 +561,28 @@ function renderCalendar() {
 }
 
 const btnPrevMonth = document.getElementById('btnPrevMonth');
-if (btnPrevMonth) btnPrevMonth.onclick = () => { state.calendarDate.setMonth(state.calendarDate.getMonth() - 1); renderCalendar(); };
+if(btnPrevMonth) btnPrevMonth.onclick = () => { state.calendarDate.setMonth(state.calendarDate.getMonth() - 1); renderCalendar(); };
 const btnNextMonth = document.getElementById('btnNextMonth');
-if (btnNextMonth) btnNextMonth.onclick = () => { state.calendarDate.setMonth(state.calendarDate.getMonth() + 1); renderCalendar(); };
+if(btnNextMonth) btnNextMonth.onclick = () => { state.calendarDate.setMonth(state.calendarDate.getMonth() + 1); renderCalendar(); };
 
 function openDayDetailsView(dateStr) {
     document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
     const daySection = document.getElementById('day-details');
-    if (daySection) daySection.classList.add('active');
+    if(daySection) daySection.classList.add('active');
     
-    const [y, m, d] = dateStr.split('-');
-    const dateObj = new Date(y, m - 1, d);
+    const [y, m, d] = dateStr.split('-'); const dateObj = new Date(y, m - 1, d);
     const dayTitle = document.getElementById('dayDetailTitle');
-    if (dayTitle) dayTitle.textContent = dateObj.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' });
+    if(dayTitle) dayTitle.textContent = dateObj.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long', year: 'numeric' });
     const container = document.getElementById('dayTasksGrid');
     const dayTasks = state.tasks.filter(t => t.deadline === dateStr);
 
     if (dayTasks.length === 0) { 
-        if (container) container.innerHTML = '<p class="text-muted" style="grid-column: 1/-1;">На цей день завдань немає.</p>'; 
+        if(container) container.innerHTML = '<p class="text-muted" style="grid-column: 1/-1;">На цей день завдань немає.</p>'; 
         return; 
     }
 
     const now = new Date(); now.setHours(0,0,0,0);
-    if (container) {
+    if(container) {
         container.innerHTML = dayTasks.map(t => {
             const isOverdue = !t.completed && new Date(t.deadline) < now;
             const typeClass = getTaskTypeClass(t.type || 'Завдання');
@@ -708,7 +615,7 @@ function openDayDetailsView(dateStr) {
 }
 
 const btnBackToCalendar = document.getElementById('btnBackToCalendar');
-if (btnBackToCalendar) {
+if(btnBackToCalendar) {
     btnBackToCalendar.onclick = () => { 
         document.getElementById('day-details').classList.remove('active'); 
         document.getElementById('calendar').classList.add('active'); 
@@ -720,16 +627,16 @@ function jumpToTask(taskId) {
     document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
     const navTasks = document.querySelector('[data-target="tasks"]');
-    if (navTasks) navTasks.classList.add('active');
+    if(navTasks) navTasks.classList.add('active');
     const tasksSec = document.getElementById('tasks');
-    if (tasksSec) tasksSec.classList.add('active');
+    if(tasksSec) tasksSec.classList.add('active');
     
     state.taskFilter = 'all'; state.taskSearch = '';
     const searchInput = document.getElementById('taskSearchInput');
-    if (searchInput) searchInput.value = '';
+    if(searchInput) searchInput.value = '';
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
     const filterAll = document.querySelector('.filter-btn[data-filter="all"]');
-    if (filterAll) filterAll.classList.add('active');
+    if(filterAll) filterAll.classList.add('active');
     renderTasks();
 
     setTimeout(() => {
@@ -742,46 +649,40 @@ function jumpToTask(taskId) {
     }, 100);
 }
 
+// ==================== 11. ПРЕДМЕТИ ТА СЕМІНАРИ ====================
 function renderSubjectsGrid() {
     const grid = document.getElementById('subjectsGrid'); 
-    if (!grid) return;
+    if(!grid) return;
     grid.innerHTML = '';
-    ensureSubjectDataStructure();
     allSubjectsList.forEach(sub => {
         const data = state.subjectData[sub];
-        const card = document.createElement('div');
-        card.className = 'card subject-card';
+        const card = document.createElement('div'); card.className = 'card subject-card';
         card.innerHTML = `<h3>${sub}</h3><div class="subject-meta"><span>📝 Конспекти: ${data.notes.length}</span><span>📚 Література: ${data.literature.length}</span></div>`;
-        card.onclick = () => openDetailsView('subject', sub);
-        grid.appendChild(card);
+        card.onclick = () => openDetailsView('subject', sub); grid.appendChild(card);
     });
     const taskSubSelect = document.getElementById('taskSubject');
-    if (taskSubSelect) taskSubSelect.innerHTML = allSubjectsList.map(s => `<option value="${s}">${s}</option>`).join('');
+    if(taskSubSelect) taskSubSelect.innerHTML = allSubjectsList.map(s => `<option value="${s}">${s}</option>`).join('');
 }
 
 function renderSeminarsGrid() {
     const grid = document.getElementById('seminarsGrid'); 
-    if (!grid) return;
+    if(!grid) return;
     grid.innerHTML = '';
-    ensureSubjectDataStructure();
     allSubjectsList.forEach(sub => {
-        const card = document.createElement('div');
-        card.className = 'card subject-card';
+        const card = document.createElement('div'); card.className = 'card subject-card';
         const tasksCount = state.tasks.filter(t => t.subject === sub && t.type === 'Семінар').length;
         card.innerHTML = `<h3>${sub}</h3><div class="subject-meta"><span>📝 Завдань: ${tasksCount}</span><span>📁 Матеріалів: ${state.subjectData[sub].seminars.length}</span></div>`;
-        card.onclick = () => openDetailsView('seminar', sub);
-        grid.appendChild(card);
+        card.onclick = () => openDetailsView('seminar', sub); grid.appendChild(card);
     });
 }
 
 function openDetailsView(type, subjectName) {
-    ensureSubjectDataStructure();
     state.currentViewParams = { type, name: subjectName };
     document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
     if (type === 'subject') {
         document.getElementById('subject-details').classList.add('active');
         document.getElementById('subjectDetailTitle').textContent = subjectName;
-        document.getElementById('additionalInfoText').value = state.subjectData[subjectName].additional_info.text || '';
+        document.getElementById('additionalInfoText').value = state.subjectData[subjectName].additional_info.text;
         renderFileList('subjectNotesList', state.subjectData[subjectName].notes, {type: 'notes'});
         renderFileList('subjectLiteratureList', state.subjectData[subjectName].literature, {type: 'literature'});
         renderFileList('subjectAdditionalFilesList', state.subjectData[subjectName].additional_info.files, {type: 'additional'});
@@ -795,30 +696,29 @@ function openDetailsView(type, subjectName) {
 }
 
 const btnBackToSubjects = document.getElementById('btnBackToSubjects');
-if (btnBackToSubjects) btnBackToSubjects.onclick = () => { document.getElementById('subject-details').classList.remove('active'); document.getElementById('subjects').classList.add('active'); renderSubjectsGrid(); };
+if(btnBackToSubjects) btnBackToSubjects.onclick = () => { document.getElementById('subject-details').classList.remove('active'); document.getElementById('subjects').classList.add('active'); renderSubjectsGrid(); };
 const btnBackToSeminars = document.getElementById('btnBackToSeminars');
-if (btnBackToSeminars) btnBackToSeminars.onclick = () => { document.getElementById('seminar-details').classList.remove('active'); document.getElementById('seminars-tab').classList.add('active'); renderSeminarsGrid(); };
+if(btnBackToSeminars) btnBackToSeminars.onclick = () => { document.getElementById('seminar-details').classList.remove('active'); document.getElementById('seminars-tab').classList.add('active'); renderSeminarsGrid(); };
 
 function saveAdditionalInfo() {
     if (!isAdmin()) { alert("Лише адміністратор може редагувати матеріали."); return; }
-    if (!state.currentViewParams) return;
+    if(!state.currentViewParams) return;
     state.subjectData[state.currentViewParams.name].additional_info.text = document.getElementById('additionalInfoText').value;
-    saveData();
-    alert("Текст збережено!");
+    saveData(); alert("Текст збережено!");
 }
 
 function renderSeminarTasks(subjectName) {
     const container = document.getElementById('seminarTasksList');
-    if (!container) return;
+    if(!container) return;
     const seminarTasks = state.tasks.filter(t => t.subject === subjectName && t.type === 'Семінар');
     const sc = document.getElementById('seminarTasksContainer');
     
     if (seminarTasks.length === 0) {
-        if (sc) sc.style.display = 'none';
+        if(sc) sc.style.display = 'none';
         return;
     }
     
-    if (sc) sc.style.display = 'block';
+    if(sc) sc.style.display = 'block';
     const now = new Date(); now.setHours(0,0,0,0);
     const adminMode = isAdmin();
 
@@ -857,113 +757,55 @@ function renderSeminarTasks(subjectName) {
     }).join('');
 }
 
+// ==================== 12. РОБОТА З ФАЙЛАМИ ТА ДОКУМЕНТАМИ ====================
 function getFileIcon(filename, type) {
-    if (type === 'gdrive' || (filename && filename.includes('drive.google.com'))) {
-        return '<i class="fab fa-google-drive" style="color: #0F9D58;"></i>';
-    }
-    if (type === 'link') return '<i class="fas fa-link" style="color: #4285F4;"></i>';
-    if (filename && filename.endsWith('.pdf')) return '<i class="fas fa-file-pdf" style="color: #e23636;"></i>';
-    if (filename && filename.match(/\.(jpg|jpeg|png)$/i)) return '<i class="fas fa-file-image" style="color: #00a8ff;"></i>';
+    if(type === 'link') return '<i class="fas fa-link"></i>';
+    if(filename.endsWith('.pdf')) return '<i class="fas fa-file-pdf" style="color: #e23636;"></i>';
+    if(filename.match(/\.(jpg|jpeg|png)$/i)) return '<i class="fas fa-file-image" style="color: #00a8ff;"></i>';
     return '<i class="fas fa-file-alt"></i>';
 }
 
 function renderFileList(containerId, filesArray, sourceObj) {
     const container = document.getElementById(containerId);
-    if (!container) return;
-    if (!filesArray || filesArray.length === 0) {
-        container.innerHTML = '<p class="text-muted">Поки порожньо</p>';
-        return;
-    }
+    if(!container) return;
+    if(!filesArray || filesArray.length === 0) { container.innerHTML = '<p class="text-muted">Поки порожньо</p>'; return; }
     const adminMode = isAdmin();
 
-    container.innerHTML = filesArray.map(f => {
-        const safeName = encodeURIComponent(f.name || 'Файл').replace(/'/g, "%27");
-        const safeUrl = encodeURIComponent(f.url || '').replace(/'/g, "%27");
-        return `
+    container.innerHTML = filesArray.map(f => `
         <div class="file-row">
-            <div class="file-name-col" onclick="viewFile('${f.id}', '${f.type}', decodeURIComponent('${safeName}'), decodeURIComponent('${safeUrl}'))" title="Відкрити">
+            <div class="file-name-col" onclick="viewFile('${f.id}', '${f.type}', '${f.name}', '${f.url || ''}')" title="Відкрити">
                 ${getFileIcon(f.name, f.type)} <span class="file-name-text">${f.name}</span>
             </div>
             <div class="file-actions">
-                <button class="icon-btn" onclick="viewFile('${f.id}', '${f.type}', decodeURIComponent('${safeName}'), decodeURIComponent('${safeUrl}'))" title="Відкрити"><i class="fas fa-eye"></i></button>
+                <button class="icon-btn" onclick="viewFile('${f.id}', '${f.type}', '${f.name}', '${f.url || ''}')" title="Відкрити"><i class="fas fa-eye"></i></button>
                 ${adminMode ? `
                 <button class="icon-btn" onclick="renameFile('${f.id}', '${sourceObj.type}', '${sourceObj.taskId || ''}')" title="Перейменувати"><i class="fas fa-pen"></i></button>
                 <button class="icon-btn delete" onclick="confirmDelete(() => processDeleteFile('${f.id}', '${sourceObj.type}', '${sourceObj.taskId || ''}'))" title="Видалити"><i class="fas fa-trash"></i></button>
                 ` : ''}
             </div>
         </div>
-    `}).join('');
-}
-
-function triggerGoogleDriveLink(targetType, taskId = null) {
-    if (!isAdmin()) { 
-        alert("Увійдіть під акаунтом адміністратора, щоб додавати матеріали!"); 
-        return; 
-    }
-
-    const rawUrl = prompt("Вставте посилання на файл або папку з Google Диска:");
-    if (!rawUrl || !rawUrl.trim()) return;
-
-    let defaultName = "Конспект з Google Диска";
-    const name = prompt("Введіть назву документа (наприклад: Лекція 1 / Самохвалов):", defaultName);
-    if (!name || !name.trim()) return;
-
-    let fileUrl = rawUrl.trim();
-    if (fileUrl.includes('drive.google.com/file/d/')) {
-        fileUrl = fileUrl.replace(/\/view(\?.*)?$/, '/preview');
-    }
-
-    const driveObj = {
-        id: 'gdrive_' + Date.now(),
-        name: name.trim(),
-        type: 'gdrive',
-        url: fileUrl
-    };
-
-    if (targetType === 'task') {
-        const t = state.tasks.find(x => x.id === taskId);
-        if (t) {
-            if (!t.materials) t.materials = [];
-            t.materials.push(driveObj);
-            renderTasks();
-            if (state.currentDetailTaskId === t.id) openTaskDetailsModal(t.id);
-            if (state.currentViewParams && state.currentViewParams.type === 'seminar') renderSeminarTasks(state.currentViewParams.name);
-        }
-    } else {
-        const sub = state.currentViewParams.name;
-        ensureSubjectDataStructure();
-        if (targetType === 'notes') state.subjectData[sub].notes.push(driveObj);
-        else if (targetType === 'literature') state.subjectData[sub].literature.push(driveObj);
-        else if (targetType === 'additional') state.subjectData[sub].additional_info.files.push(driveObj);
-        else if (targetType === 'seminars') state.subjectData[sub].seminars.push(driveObj);
-        openDetailsView(state.currentViewParams.type, sub);
-    }
-    saveData();
-    alert("Матеріал успішно додано!");
+    `).join('');
 }
 
 const globalInput = document.getElementById('globalFileInput');
 function triggerFileUpload(type, taskId = null) { 
     if (!isAdmin()) { alert("Лише адміністратор може додавати матеріали."); return; }
     state.uploadTarget = { type, id: taskId }; 
-    if (globalInput) globalInput.click(); 
+    if(globalInput) globalInput.click(); 
 }
 
 function triggerSubjectLink() {
     if (!isAdmin()) { alert("Лише адміністратор може додавати посилання."); return; }
-    const url = prompt("Вставте посилання:");
-    if (!url) return;
+    const url = prompt("Вставте посилання:"); if(!url) return;
     const name = prompt("Назва посилання:", "Корисний ресурс");
-    state.subjectData[state.currentViewParams.name].literature.push({ id: 'lnk_'+Date.now(), name: name || "Посилання", type: 'link', url: url.trim() });
-    saveData();
-    openDetailsView('subject', state.currentViewParams.name);
+    state.subjectData[state.currentViewParams.name].literature.push({ id: 'lnk_'+Date.now(), name: name||"Посилання", type: 'link', url: url });
+    saveData(); openDetailsView('subject', state.currentViewParams.name);
 }
 
 if (globalInput) {
     globalInput.addEventListener('change', function(e) {
         if (!isAdmin()) return;
-        const file = e.target.files[0];
-        if (!file) return;
+        const file = e.target.files[0]; if(!file) return;
         const reader = new FileReader();
         reader.onload = async function(ev) {
             const fileId = 'file_' + Date.now();
@@ -971,8 +813,8 @@ if (globalInput) {
             await saveFileToDB({ id: fileId, data: ev.target.result });
             if (state.uploadTarget.type === 'task') {
                 const t = state.tasks.find(x => x.id === state.uploadTarget.id);
-                if (t) { 
-                    if (!t.materials) t.materials = [];
+                if(t) { 
+                    if(!t.materials) t.materials = [];
                     t.materials.push(metaObj); 
                     renderTasks(); 
                     if (state.currentDetailTaskId === t.id) openTaskDetailsModal(t.id);
@@ -980,35 +822,29 @@ if (globalInput) {
                 }
             } else {
                 const sub = state.currentViewParams.name;
-                ensureSubjectDataStructure();
-                if (state.uploadTarget.type === 'notes') state.subjectData[sub].notes.push(metaObj);
+                if(state.uploadTarget.type === 'notes') state.subjectData[sub].notes.push(metaObj);
                 else if (state.uploadTarget.type === 'literature') state.subjectData[sub].literature.push(metaObj);
                 else if (state.uploadTarget.type === 'additional') state.subjectData[sub].additional_info.files.push(metaObj);
                 else if (state.uploadTarget.type === 'seminars') state.subjectData[sub].seminars.push(metaObj);
                 openDetailsView(state.currentViewParams.type, sub);
-            }
-            saveData();
-        };
-        reader.readAsDataURL(file);
-        this.value = '';
+            } saveData();
+        }; reader.readAsDataURL(file); this.value = '';
     });
 }
 
 async function processDeleteFile(id, sourceType, taskId) {
     if (!isAdmin()) return;
-    if (sourceType === 'task') {
+    if(sourceType === 'task') {
         const t = state.tasks.find(x => x.id == taskId); 
         if (t && t.materials) t.materials = t.materials.filter(f => f.id !== id);
     } else {
         const sub = state.currentViewParams.name;
-        if (sourceType === 'notes') state.subjectData[sub].notes = state.subjectData[sub].notes.filter(f => f.id !== id);
-        if (sourceType === 'literature') state.subjectData[sub].literature = state.subjectData[sub].literature.filter(f => f.id !== id);
-        if (sourceType === 'additional') state.subjectData[sub].additional_info.files = state.subjectData[sub].additional_info.files.filter(f => f.id !== id);
-        if (sourceType === 'seminars') state.subjectData[sub].seminars = state.subjectData[sub].seminars.filter(f => f.id !== id);
+        if(sourceType === 'notes') state.subjectData[sub].notes = state.subjectData[sub].notes.filter(f => f.id !== id);
+        if(sourceType === 'literature') state.subjectData[sub].literature = state.subjectData[sub].literature.filter(f => f.id !== id);
+        if(sourceType === 'additional') state.subjectData[sub].additional_info.files = state.subjectData[sub].additional_info.files.filter(f => f.id !== id);
+        if(sourceType === 'seminars') state.subjectData[sub].seminars = state.subjectData[sub].seminars.filter(f => f.id !== id);
     }
-    if (!id.startsWith('lnk_') && !id.startsWith('gdrive_')) {
-        await deleteFileFromDB(id);
-    }
+    if(!id.startsWith('lnk_')) await deleteFileFromDB(id);
     saveData(); 
     if (sourceType === 'task') {
         renderTasks();
@@ -1021,20 +857,19 @@ async function processDeleteFile(id, sourceType, taskId) {
 
 function renameFile(id, sourceType, taskId) {
     if (!isAdmin()) return;
-    const newName = prompt("Введіть нову назву:");
-    if (!newName) return;
+    const newName = prompt("Введіть нову назву:"); if(!newName) return;
     let arr = [];
-    if (sourceType === 'task') arr = state.tasks.find(x => x.id == taskId).materials;
+    if(sourceType === 'task') arr = state.tasks.find(x => x.id == taskId).materials;
     else {
         const sub = state.currentViewParams.name;
-        if (sourceType === 'notes') arr = state.subjectData[sub].notes;
-        if (sourceType === 'literature') arr = state.subjectData[sub].literature;
-        if (sourceType === 'additional') arr = state.subjectData[sub].additional_info.files;
-        if (sourceType === 'seminars') arr = state.subjectData[sub].seminars;
+        if(sourceType === 'notes') arr = state.subjectData[sub].notes;
+        if(sourceType === 'literature') arr = state.subjectData[sub].literature;
+        if(sourceType === 'additional') arr = state.subjectData[sub].additional_info.files;
+        if(sourceType === 'seminars') arr = state.subjectData[sub].seminars;
     }
     const file = arr.find(f => f.id === id);
-    if (file) { 
-        file.name = newName.trim(); 
+    if(file) { 
+        file.name = newName; 
         saveData(); 
         if (sourceType === 'task') {
             renderTasks();
@@ -1046,74 +881,43 @@ function renameFile(id, sourceType, taskId) {
 }
 
 async function viewFile(id, type, name, url) {
-    if (type === 'gdrive' || (url && url.includes('drive.google.com'))) {
-        if (url.includes('/folders/')) {
-            window.open(url, '_blank');
-            return;
-        }
-        document.getElementById('viewerTitle').textContent = name;
-        const body = document.getElementById('viewerBody');
-        document.getElementById('btnDownloadViewer').onclick = () => window.open(url, '_blank');
-        body.innerHTML = `<iframe src="${url}" style="width:100%; height:100%; border:none; border-radius: 8px;" allow="autoplay"></iframe>`;
-        document.getElementById('viewerModal').style.display = 'flex';
-        return;
-    }
-
-    if (type === 'link') { 
-        window.open(url, '_blank'); 
-        return; 
-    }
-
+    if(type === 'link') { window.open(url, '_blank'); return; }
     const dbFile = await getFileFromDB(id);
-    if (!dbFile) { 
-        alert("Цей файл був збережений локально на іншому пристрої. Додайте його через кнопку «Диск» (Google Drive)!"); 
-        return; 
-    }
+    if(!dbFile) { alert("Файл не знайдено"); return; }
     
     document.getElementById('viewerTitle').textContent = name;
     const body = document.getElementById('viewerBody');
     document.getElementById('btnDownloadViewer').onclick = () => downloadFileTrigger(id, name, type, url, dbFile.data);
     
     if (type === 'application/pdf') {
-        body.innerHTML = `<iframe src="${dbFile.data}#toolbar=0" style="width:100%; height:100%; border:none;"></iframe>`;
+        body.innerHTML = `<iframe src="${dbFile.data}#toolbar=0"></iframe>`;
     } else if (type.startsWith('image/')) {
-        body.innerHTML = `<img src="${dbFile.data}" style="max-width:100%; max-height:100%; display:block; margin:auto; border-radius: 8px;">`;
+        body.innerHTML = `<img src="${dbFile.data}">`;
     } else if (type.startsWith('text/') || name.endsWith('.txt')) {
         const text = atob(dbFile.data.split(',')[1]); 
-        body.innerHTML = `<pre style="white-space: pre-wrap; font-family: inherit;">${decodeURIComponent(escape(text))}</pre>`;
+        body.innerHTML = `<pre>${decodeURIComponent(escape(text))}</pre>`;
     } else {
-        body.innerHTML = `<div style="padding: 40px; text-align: center;"><i class="fas fa-file-alt" style="font-size: 60px; color: var(--primary-color); margin-bottom: 20px;"></i><h4>Цей формат неможливо переглянути в браузері.</h4><p class="text-muted mt-2">Будь ласка, завантажте файл на пристрій.</p></div>`;
+        body.innerHTML = `<div style="padding: 40px;"><i class="fas fa-file-alt" style="font-size: 60px; color: var(--primary-color); margin-bottom: 20px;"></i><h4>Цей формат неможливо переглянути в браузері.</h4><p class="text-muted mt-2">Будь ласка, завантажте файл на комп'ютер.</p></div>`;
     }
     document.getElementById('viewerModal').style.display = 'flex';
 }
 
 const closeViewerBtn = document.getElementById('closeViewerBtn');
-if (closeViewerBtn) {
-    closeViewerBtn.onclick = () => { 
-        document.getElementById('viewerModal').style.display = 'none'; 
-        document.getElementById('viewerBody').innerHTML = ''; 
-    };
+if(closeViewerBtn) {
+    closeViewerBtn.onclick = () => { document.getElementById('viewerModal').style.display = 'none'; document.getElementById('viewerBody').innerHTML = ''; };
 }
 
 async function downloadFileTrigger(id, name, type, url, preloadedData = null) {
-    if (type === 'link' || type === 'gdrive') { window.open(url, '_blank'); return; }
-    let fileData = preloadedData;
-    if (!fileData) {
-        const dbResult = await getFileFromDB(id);
-        if (dbResult) fileData = dbResult.data;
-    }
-    if (fileData) { 
-        const a = document.createElement('a'); 
-        a.href = fileData; 
-        a.download = name; 
-        a.click(); 
-    }
+    if(type === 'link') { window.open(url, '_blank'); return; }
+    let fileData = preloadedData || (await getFileFromDB(id))?.data;
+    if(fileData) { const a = document.createElement('a'); a.href = fileData; a.download = name; a.click(); }
 }
 
+// ==================== 13. СИСТЕМА ЗАВДАНЬ ====================
 function renderTasks() {
     const container = document.getElementById('tasksGrid');
-    if (!container) return;
-    let filtered = [...state.tasks];
+    if(!container) return;
+    let filtered = state.tasks;
     if (state.taskSearch) { 
         const s = state.taskSearch.toLowerCase(); 
         filtered = filtered.filter(t => t.title.toLowerCase().includes(s) || (t.desc && t.desc.toLowerCase().includes(s)) || t.subject.toLowerCase().includes(s)); 
@@ -1175,13 +979,11 @@ function renderTasks() {
     
     const count = state.tasks.filter(t => !t.completed).length;
     const taskBadge = document.getElementById('taskBadge');
-    if (taskBadge) taskBadge.textContent = count;
+    if(taskBadge) taskBadge.textContent = count;
     const uncompletedCount = document.getElementById('uncompletedCount');
-    if (uncompletedCount) uncompletedCount.textContent = count;
+    if(uncompletedCount) uncompletedCount.textContent = count;
     
-    renderSchedule();
-    updateDateAndTime();
-    renderCalendar();
+    renderSchedule(); updateDateAndTime(); renderCalendar();
 }
 
 function openTaskDetailsModal(id) {
@@ -1212,12 +1014,6 @@ function openTaskDetailsModal(id) {
     if (btnAddFile) {
         btnAddFile.onclick = () => triggerFileUpload('task', t.id);
         btnAddFile.style.display = isAdmin() ? 'inline-flex' : 'none';
-    }
-
-    const btnDriveTask = document.getElementById('btnAddTaskDriveLink');
-    if (btnDriveTask) {
-        btnDriveTask.onclick = () => triggerGoogleDriveLink('task', t.id);
-        btnDriveTask.style.display = isAdmin() ? 'inline-flex' : 'none';
     }
 
     const toggleBtn = document.getElementById('detailBtnToggleStatus');
@@ -1253,7 +1049,7 @@ function openTaskDetailsModal(id) {
 }
 
 const closeTaskDetailsModal = document.getElementById('closeTaskDetailsModal');
-if (closeTaskDetailsModal) {
+if(closeTaskDetailsModal) {
     closeTaskDetailsModal.onclick = () => {
         document.getElementById('taskDetailsModal').style.display = 'none';
         state.currentDetailTaskId = null;
@@ -1276,11 +1072,7 @@ function toggleTaskStatus(id) {
 function processDeleteTask(id) {
     if (!isAdmin()) { alert("Лише адміністратор може видаляти завдання."); return; }
     const t = state.tasks.find(x => x.id === id);
-    if (t && t.materials) {
-        t.materials.forEach(f => {
-            if (!f.id.startsWith('lnk_') && !f.id.startsWith('gdrive_')) deleteFileFromDB(f.id);
-        });
-    }
+    if(t && t.materials) t.materials.forEach(f => deleteFileFromDB(f.id)); 
     state.tasks = state.tasks.filter(x => x.id !== id); 
     state.completedTaskIds = state.completedTaskIds.filter(x => x !== id);
     saveData(); 
@@ -1290,7 +1082,7 @@ function processDeleteTask(id) {
 }
 
 const btnAddTask = document.getElementById('btnAddTask');
-if (btnAddTask) {
+if(btnAddTask) {
     btnAddTask.onclick = () => { 
         if (!isAdmin()) { alert("Лише адміністратор може створювати завдання."); return; }
         document.getElementById('taskForm').reset(); 
@@ -1302,8 +1094,7 @@ if (btnAddTask) {
 
 function openEditTaskModal(id) {
     if (!isAdmin()) return;
-    const t = state.tasks.find(x => x.id === id);
-    if (!t) return;
+    const t = state.tasks.find(x => x.id === id); if(!t) return;
     document.getElementById('editTaskId').value = t.id; 
     document.getElementById('taskSubject').value = t.subject; 
     document.getElementById('taskType').value = t.type || 'Завдання'; 
@@ -1316,10 +1107,10 @@ function openEditTaskModal(id) {
 }
 
 const closeTaskModal = document.getElementById('closeTaskModal');
-if (closeTaskModal) closeTaskModal.onclick = () => document.getElementById('taskModal').style.display = 'none';
+if(closeTaskModal) closeTaskModal.onclick = () => document.getElementById('taskModal').style.display = 'none';
 
 const taskForm = document.getElementById('taskForm');
-if (taskForm) {
+if(taskForm) {
     taskForm.onsubmit = (e) => {
         e.preventDefault();
         if (!isAdmin()) { alert("У вас немає прав на додавання або редагування завдань."); return; }
@@ -1349,9 +1140,9 @@ if (taskForm) {
 }
 
 const taskSearchInput = document.getElementById('taskSearchInput');
-if (taskSearchInput) taskSearchInput.addEventListener('input', (e) => { state.taskSearch = e.target.value; renderTasks(); });
+if(taskSearchInput) taskSearchInput.addEventListener('input', (e) => { state.taskSearch = e.target.value; renderTasks(); });
 const taskSortSelect = document.getElementById('taskSortSelect');
-if (taskSortSelect) taskSortSelect.addEventListener('change', (e) => { state.taskSort = e.target.value; renderTasks(); });
+if(taskSortSelect) taskSortSelect.addEventListener('change', (e) => { state.taskSort = e.target.value; renderTasks(); });
 document.querySelectorAll('.filter-btn').forEach(btn => { 
     btn.onclick = (e) => { 
         document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active')); 
@@ -1369,6 +1160,7 @@ window.addEventListener('click', (e) => {
     }
 });
 
+// ==================== 14. ПІДТВЕРДЖЕННЯ ВИДАЛЕННЯ ====================
 let pendingDeleteAction = null;
 function confirmDelete(actionFn) { 
     if (!isAdmin()) { alert("Лише адміністратор може видаляти матеріали."); return; }
@@ -1376,31 +1168,28 @@ function confirmDelete(actionFn) {
     document.getElementById('deleteConfirmModal').style.display = 'flex'; 
 }
 const btnCancelDelete = document.getElementById('btnCancelDelete');
-if (btnCancelDelete) btnCancelDelete.onclick = () => { pendingDeleteAction = null; document.getElementById('deleteConfirmModal').style.display = 'none'; };
+if(btnCancelDelete) btnCancelDelete.onclick = () => { pendingDeleteAction = null; document.getElementById('deleteConfirmModal').style.display = 'none'; };
 const btnConfirmDelete = document.getElementById('btnConfirmDelete');
-if (btnConfirmDelete) btnConfirmDelete.onclick = () => { if (pendingDeleteAction) pendingDeleteAction(); document.getElementById('deleteConfirmModal').style.display = 'none'; pendingDeleteAction = null; };
+if(btnConfirmDelete) btnConfirmDelete.onclick = () => { if(pendingDeleteAction) pendingDeleteAction(); document.getElementById('deleteConfirmModal').style.display = 'none'; pendingDeleteAction = null; };
 
+// ==================== 15. НАЛАШТУВАННЯ ТА ТЕМА ====================
 function setupEventListeners() {
     const btnUpper = document.getElementById('btnUpperWeek');
-    if (btnUpper) btnUpper.onclick = (e) => switchWeek('upper', e.target);
+    if(btnUpper) btnUpper.onclick = (e) => switchWeek('upper', e.target);
     const btnLower = document.getElementById('btnLowerWeek');
-    if (btnLower) btnLower.onclick = (e) => switchWeek('lower', e.target);
-    if (state.weekType === 'lower') { 
-        if (btnLower) btnLower.classList.add('active'); 
-        if (btnUpper) btnUpper.classList.remove('active'); 
+    if(btnLower) btnLower.onclick = (e) => switchWeek('lower', e.target);
+    if(state.weekType === 'lower') { 
+        if(btnLower) btnLower.classList.add('active'); 
+        if(btnUpper) btnUpper.classList.remove('active'); 
     }
     
     const btnSaveSet = document.getElementById('btnSaveSettings');
-    if (btnSaveSet) {
+    if(btnSaveSet) {
         btnSaveSet.onclick = () => {
             state.settings.langGroup = document.getElementById('setLangGroup').value;
             state.settings.darkTheme = document.getElementById('themeToggle').checked;
-            if (state.settings.darkTheme) document.documentElement.setAttribute('data-theme', 'dark');
-            else document.documentElement.removeAttribute('data-theme');
-            saveData();
-            updateDateAndTime();
-            renderSchedule();
-            alert('Налаштування збережено!');
+            if(state.settings.darkTheme) document.documentElement.setAttribute('data-theme', 'dark'); else document.documentElement.removeAttribute('data-theme');
+            saveData(); updateDateAndTime(); renderSchedule(); alert('Налаштування збережено!');
         };
     }
 }
@@ -1418,9 +1207,8 @@ function initSettings() {
     const setLangGroup = document.getElementById('setLangGroup');
     if (setLangGroup) setLangGroup.value = state.settings.langGroup || '1';
     const themeToggle = document.getElementById('themeToggle');
-    if (themeToggle) {
-        themeToggle.checked = !!state.settings.darkTheme;
-        if (state.settings.darkTheme) document.documentElement.setAttribute('data-theme', 'dark');
-        else document.documentElement.removeAttribute('data-theme');
+    if (themeToggle && state.settings.darkTheme) { 
+        themeToggle.checked = true; 
+        document.documentElement.setAttribute('data-theme', 'dark'); 
     }
 }
