@@ -92,78 +92,107 @@ body { background-color: var(--bg-color); color: var(--text-main); display: flex
 
 /* Types */
 .type-badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; border: 1px solid transparent; flex-shrink: 0; }
-.badge-type-test { background: rgba(204, 8, 188, 0.1); color: #cc08bc; border-color: rgba(204, 8, 188, 0.3); } 
+.badge-type-test { background: rgba(204, 8, 188, 0.1); color: #cc08bc; border-color: rgba(204, 8, 188, 0.3); }
 .task-card.type-test { border-left-color: #cc08bc; }
 .cal-task-label.type-test { background: #cc08bc; }
-.badge-type-seminar { background: rgba(239, 71, 111, 0.1); color: var(--danger); border-color: rgba(239, 71, 111, 0.3); } 
+.badge-type-seminar { background: rgba(239, 71, 111, 0.1); color: var(--danger); border-color: rgba(239, 71, 111, 0.3); }
 .task-card.type-seminar { border-left-color: var(--danger); }
 .cal-task-label.type-seminar { background: var(--danger); }
-.badge-type-task { background: rgba(67, 97, 238, 0.1); color: var(--primary-color); border-color: rgba(67, 97, 238, 0.3); } 
+.badge-type-task { background: rgba(67, 97, 238, 0.1); color: var(--primary-color); border-color: rgba(67, 97, 238, 0.3); }
 .task-card.type-task { border-left-color: var(--primary-color); }
 .cal-task-label.type-task { background: var(--primary-color); }
-.badge-type-check { background: rgba(245, 158, 11, 0.1); color: var(--warning); border-color: rgba(245, 158, 11, 0.3); } 
+.badge-type-check { background: rgba(245, 158, 11, 0.1); color: var(--warning); border-color: rgba(245, 158, 11, 0.3); }
 .task-card.type-check { border-left-color: var(--warning); }
 .cal-task-label.type-check { background: var(--warning); }
-.cal-task-label.done { opacity: 0.6; text-decoration: line-through; }
 
 /* Tasks Grid & Cards */
 .tasks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 20px; align-items: stretch; }
-.task-card { background: var(--card-bg); padding: 18px 20px; border-radius: 16px; border: 1px solid var(--border-color); border-left: 5px solid var(--primary-color); box-shadow: var(--shadow); display: flex; flex-direction: column; justify-content: space-between; min-height: 240px; height: auto; transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease; cursor: pointer; position: relative; }
+.task-card { background: var(--card-bg); padding: 18px 20px; border-radius: 16px; border: 1px solid var(--border-color); border-left: 5px solid var(--primary-color); box-shadow: var(--shadow); display: flex; flex-direction: column; min-height: 220px; transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease; cursor: pointer; position: relative; }
 .task-card:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(67, 97, 238, 0.14); }
 .task-card.completed { opacity: 0.85; border-left-color: var(--success) !important; }
 .task-card.overdue { box-shadow: 0 4px 15px rgba(239, 71, 111, 0.15); }
 .task-card.highlight { animation: highlightTask 3s ease; }
 @keyframes highlightTask { 0% { transform: scale(1.03); box-shadow: 0 0 25px rgba(67, 97, 238, 0.6); background: rgba(67, 97, 238, 0.08); } 100% { transform: scale(1); box-shadow: var(--shadow); background: var(--card-bg); } }
 
-.task-header { 
-    display: flex !important; 
-    justify-content: space-between !important; 
-    align-items: flex-start !important; 
-    flex-wrap: nowrap !important; 
-    gap: 10px !important; 
-    margin-bottom: 12px; 
+/* Верхня частина картки росте, нижня (мета + кнопки) завжди внизу */
+.task-card-top { display: flex; flex-direction: column; flex: 1; }
+.task-card-bottom { margin-top: auto; }
+
+.task-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: nowrap;
+    gap: 10px;
+    margin-bottom: 12px;
 }
-.task-subject { 
-    flex: 1 1 auto; 
-    min-width: 0; 
-    font-size: 12px; 
-    color: var(--primary-color); 
-    font-weight: 600; 
-    background: rgba(67, 97, 238, 0.1); 
-    padding: 5px 10px; 
-    border-radius: 8px; 
-    display: inline-flex; 
-    align-items: center; 
-    gap: 6px; 
-    max-width: 100%; 
-    flex-wrap: wrap; 
+.task-subject {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 12px;
+    color: var(--primary-color);
+    font-weight: 600;
+    background: rgba(67, 97, 238, 0.1);
+    padding: 5px 10px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    flex-wrap: wrap;
     line-height: 1.35;
 }
-.task-subject-name { 
-    white-space: normal; 
-    word-break: break-word; 
-    overflow: visible; 
-    text-overflow: clip;
-}
+.task-subject-name { white-space: normal; word-break: break-word; overflow: visible; text-overflow: clip; }
 .task-header .badge,
 .task-header .btn-join {
-    flex-shrink: 0 !important; 
+    flex-shrink: 0;
     width: auto !important;
     margin: 0 !important;
     padding: 4px 10px;
     border-radius: 10px;
     font-size: 11px;
     font-weight: 600;
-    white-space: nowrap !important;
+    white-space: nowrap;
 }
 
-.task-card-title { font-size: 16px; font-weight: 700; color: var(--text-main); margin-bottom: 6px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; width: 100%; line-height: 1.35; }
-.task-desc-preview { color: var(--text-muted); font-size: 13px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 10px; width: 100%; }
-.task-meta-row { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-bottom: 10px; width: 100%; }
+/* Заголовок: до 3 рядків, без обрізання посередині слова */
+.task-card-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 6px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    width: 100%;
+    line-height: 1.35;
+    min-height: calc(1.35em * 2);
+    word-break: break-word;
+}
+
+/* Опис: завжди 2 рядки */
+.task-desc-preview {
+    color: var(--text-muted);
+    font-size: 13px;
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-bottom: 10px;
+    width: 100%;
+}
+
+.task-meta-row { display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; width: 100%; }
 .task-files-pill { font-size: 12px; color: var(--text-muted); font-weight: 500; display: inline-flex; align-items: center; gap: 5px; }
 .btn-details { background: none; border: none; color: var(--primary-color); font-size: 13px; font-weight: 600; cursor: pointer; padding: 2px 0; margin-left: auto; transition: var(--transition); }
 .btn-details:hover { text-decoration: underline; }
 .task-card-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 10px; border-top: 1px solid var(--border-color); width: 100%; }
+
+/* Бейджі дедлайнів */
+.badge-neutral { background: var(--bg-color) !important; color: var(--text-main) !important; border: 1px solid var(--border-color); }
+.badge-soon { background: rgba(245, 158, 11, 0.15) !important; color: var(--warning) !important; border: 1px solid rgba(245, 158, 11, 0.45); }
 
 /* Modals & Details */
 .task-details-modal-content { max-width: 650px; width: 92%; }
@@ -189,6 +218,16 @@ body { background-color: var(--bg-color); color: var(--text-main); display: flex
 .cal-day.today { background: rgba(67, 97, 238, 0.05); border: 2px solid var(--primary-color); }
 .cal-date { font-weight: 600; font-size: 12px; color: var(--text-main); text-align: right; margin-bottom: 2px; }
 .cal-task-label { color: white; font-size: 10px; padding: 2px 5px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; font-weight: 500; }
+/* Виконані: приглушені, без закреслення; прострочені: червона обводка */
+.cal-task-label.done { opacity: 0.45; filter: saturate(0.5); text-decoration: none; }
+.cal-task-label.over { outline: 1px solid var(--danger); outline-offset: -1px; }
+
+/* Мобільні крапки в календарі */
+.cal-dots { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: auto; }
+.cal-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--primary-color); }
+.cal-dot.done { background: var(--success); }
+.cal-dot.over { background: var(--danger); }
+.cal-count { font-size: 10px; font-weight: 600; color: var(--text-muted); }
 
 /* File List Design */
 .files-list { display: flex; flex-direction: column; gap: 10px; }
@@ -224,7 +263,7 @@ body { background-color: var(--bg-color); color: var(--text-main); display: flex
 input:checked + .slider { background-color: var(--primary-color); }
 input:checked + .slider:before { transform: translateX(26px); }
 
-/* Адаптація для мобільних телефонів: Свайп/Карусель розкладу */
+/* ===== Мобільна адаптація ===== */
 @media (max-width: 768px) {
     .sidebar { position: fixed; top: 0; left: -280px; width: 260px; height: 100vh; height: 100dvh; box-shadow: 4px 0 25px rgba(0,0,0,0.25); }
     .sidebar.open { left: 0; }
@@ -233,21 +272,24 @@ input:checked + .slider:before { transform: translateX(26px); }
     .main-content { padding: 15px; padding-top: 65px; }
     .page-header.flex-between { flex-direction: column; align-items: flex-start; gap: 12px; }
     .panel-card .flex-between, .materials-section .flex-between, .viewer-header { flex-direction: row !important; align-items: center !important; flex-wrap: wrap; gap: 10px; }
-    
+
     .task-header { flex-direction: row !important; align-items: flex-start !important; flex-wrap: nowrap !important; gap: 8px !important; }
     .task-card-footer, .detail-modal-footer { flex-direction: row !important; align-items: center !important; }
     .week-toggle, .controls-bar .form-group { width: 100%; display: flex; }
     .btn-toggle { flex-grow: 1; text-align: center; padding: 10px 8px; font-size: 12px; }
-    
+
     .class-actions, .class-actions .btn-join { width: 100%; margin-left: 0; margin-top: 8px; }
-    
+
     .cal-day { min-height: 65px; padding: 4px; }
     .cal-date { font-size: 11px; }
     .cal-task-label { font-size: 9px; padding: 2px 3px; }
     .modal-content { padding: 20px; width: 95%; }
     .viewer-modal-content { width: 98%; height: 92dvh; padding: 10px; }
 
-    /* Горизонтальний скрол / карусель карток днів */
+    .task-card { min-height: 0; }
+    .task-card-title { font-size: 15px; }
+
+    /* Горизонтальна карусель карток днів */
     .schedule-container {
         display: flex !important;
         flex-direction: row !important;
@@ -258,9 +300,7 @@ input:checked + .slider:before { transform: translateX(26px); }
         padding-bottom: 20px;
         scroll-padding-left: 15px;
     }
-    .schedule-container::-webkit-scrollbar {
-        display: none;
-    }
+    .schedule-container::-webkit-scrollbar { display: none; }
     .day-card {
         min-width: 85vw;
         max-width: 85vw;
